@@ -20,12 +20,13 @@ def cli():
 @click.option('-e', '--epochs', default=100, help='training time')
 @click.option('-l', '--lrate', default=0.01, help='learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
+@click.option('-d', '--device ', default='gpu', help='torch device')
 @click.argument('ground_truth', nargs=-1, type=click.Path(exists=True, dir_okay=False))
-def train(epochs, lrate, workers, ground_truth):
+def train(epochs, lrate, workers, device, ground_truth):
 
     train_set = BaselineSet(ground_truth)
     train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True)
-    device = torch.device('cpu')
+    device = torch.device(device)
 
     model = BaselineNet().to(device)
     criterion = nn.MSELoss()
