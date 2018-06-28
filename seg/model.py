@@ -56,7 +56,7 @@ class ConvReNet(nn.Module):
     Baseline labelling network.
     """
     def __init__(self, cls):
-        super(BaselineNet, self).__init__()
+        super(ConvReNet,, self).__init__()
         squeeze = models.squeezenet1_1(pretrained=True)
         self.feat = squeeze.features[:5]
         for param in self.feat.parameters():
@@ -130,13 +130,13 @@ class SqueezeSkipNet(nn.Module):
         # reduction factor 16
         map_3 = self.feat[7:](map_2)
 
-        map_1 = F.relu(self.heat_1_bn(self.heat_1(map_1)))
-        map_2 = F.relu(self.heat_2_bn(self.heat_2(map_2)))
-        map_3 = F.relu(self.heat_2_bn(self.heat_3(map_3)))
+        map_1 = F.relu(self.heat_1(map_1))
+        map_2 = F.relu(self.heat_2(map_2))
+        map_3 = F.relu(self.heat_3(map_3))
 
         # upsample using heat maps
-        map_2 = map_2 + self.upsample_3_bn(self.upsample_3(map_3, output_size=map_2.shape))
-        map_1 = map_1 + self.upsample_2_bn(self.upsample_2(map_2, output_size=map_1.shape))
+        map_2 = map_2 + self.upsample_3(map_3, output_size=map_2.shape)
+        map_1 = map_1 + self.upsample_2(map_2, output_size=map_1.shape)
         return self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3]))
 
     def init_weights(self):
