@@ -51,24 +51,24 @@ class ReNet(nn.Module):
         return o.permute(1, 3, 2, 0)
 
 
-class BaselineNet(nn.Module):
+class ConvReNet(nn.Module):
     """
     Baseline labelling network.
     """
-    def __init__(self):
+    def __init__(self, cls):
         super(BaselineNet, self).__init__()
         squeeze = models.squeezenet1_1(pretrained=True)
         self.feat = squeeze.features[:5]
         for param in self.feat.parameters():
             param.requires_grad = False
-        self.label = nn.Sequential(ReNet(128, 32), nn.Conv2d(64, 1, 1), nn.Sigmoid())
+        self.label = nn.Sequential(ReNet(128, 32), nn.Conv2d(64, cls, 1))
         self.init_weights()
 
     def forward(self, inputs):
         features = self.feat(inputs)
         o = self.label(features)
         o = F.upsample(o, inputs.shape[2:], mode='bilinear')
-        return o, features
+        return o
 
     def init_weights(self):
         def _wi(m):
@@ -105,13 +105,18 @@ class SqueezeSkipNet(nn.Module):
             param.requires_grad = False
         # convolutions to label space
         self.heat_1 = nn.Conv2d(128, cls, 1)
+        self.heat_1_bn = nn.BatchNorm2d(cls)
         self.heat_2 = nn.Conv2d(256, cls, 1)
+        self.heat_2_bn = nn.BatchNorm2d(cls)
         self.heat_3 = nn.Conv2d(512, cls, 1)
+        self.heat_3_bn = nn.BatchNorm2d(cls)
         # upsampling of label space heat maps
         # upsamples [:]
         self.upsample_3 = nn.ConvTranspose2d(cls, cls, 2, stride=2)
+        self.upsample_3_bn = nn.BatchNorm2d(cls)
         # upsamples [:7] + prev maps
         self.upsample_2 = nn.ConvTranspose2d(cls, cls, 2, stride=2)
+        self.upsample_2_bn = nn.BatchNorm2d(cls)
         # upsamples [:5] + prev maps
         self.upsample_1 = nn.ConvTranspose2d(cls, cls, 5, stride=4)
         self.init_weights()
@@ -125,13 +130,13 @@ class SqueezeSkipNet(nn.Module):
         # reduction factor 16
         map_3 = self.feat[7:](map_2)
 
-        map_1 = self.heat_1(map_1)
-        map_2 = self.heat_2(map_2)
-        map_3 = self.heat_3(map_3)
+        map_1 = F.relu(self.heat_1_bn(self.heat_1(map_1)))
+        map_2 = F.relu(self.heat_2_bn(self.heat_2(map_2)))
+        map_3 = F.relu(self.heat_2_bn(self.heat_3(map_3)))
 
         # upsample using heat maps
-        map_2 = map_2 + self.upsample_3(map_3, output_size=map_2.shape)
-        map_1 = map_1 + self.upsample_2(map_2, output_size=map_1.shape)
+        map_2 = map_2 + self.upsample_3_bn(self.upsample_3(map_3, output_size=map_2.shape))
+        map_1 = map_1 + self.upsample_2_bn(self.upsample_2(map_2, output_size=map_1.shape))
         return self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3]))
 
     def init_weights(self):
