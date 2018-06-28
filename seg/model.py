@@ -91,6 +91,75 @@ class BaselineNet(nn.Module):
                     torch.nn.init.uniform_(p.data, -0.1, 0.1)
         self.label.apply(_wi)
 
+class SqueezeSkipNet(nn.Module):
+    """
+    SqueezeNet encoder + SkipNet decoder
+    """
+    def __init__(self, cls=4):
+        super(SqueezeSkipNet, self).__init__()
+        self.cls = cls
+        # squeezenet feature extractor
+        squeeze = models.squeezenet1_1(pretrained=True)
+        self.feat = squeeze.features
+        for param in self.feat.parameters():
+            param.requires_grad = False
+        # convolutions to label space
+        self.heat_1 = nn.Conv2d(128, cls, 1)
+        self.heat_2 = nn.Conv2d(256, cls, 1)
+        self.heat_3 = nn.Conv2d(512, cls, 1)
+        # upsampling of label space heat maps
+        # upsamples [:]
+        self.upsample_3 = nn.ConvTranspose2d(cls, cls, 2, stride=2)
+        # upsamples [:7] + prev maps
+        self.upsample_2 = nn.ConvTranspose2d(cls, cls, 2, stride=2)
+        # upsamples [:5] + prev maps
+        self.upsample_1 = nn.ConvTranspose2d(cls, cls, 5, stride=4)
+        self.init_weights()
+
+    def forward(self, inputs):
+        siz = inputs.size()
+        # reduction factor 4
+        map_1 = self.feat[:5](inputs)
+        # reduction factor 8
+        map_2 = self.feat[5:7](map_1)
+        # reduction factor 16
+        map_3 = self.feat[7:](map_2)
+
+        map_1 = self.heat_1(map_1)
+        map_2 = self.heat_2(map_2)
+        map_3 = self.heat_3(map_3)
+
+        # upsample using heat maps
+        map_2 = map_2 + self.upsample_3(map_3, output_size=map_2.shape)
+        map_1 = map_1 + self.upsample_2(map_2, output_size=map_1.shape)
+        return self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3]))
+
+    def init_weights(self):
+        def _wi(m):
+            if isinstance(m, torch.nn.Linear):
+                torch.nn.init.xavier_uniform_(m.weight.data)
+                torch.nn.init.constant_(m.bias.data, 0)
+            elif isinstance(m, torch.nn.LSTM):
+                for p in m.parameters():
+                    # weights
+                    if p.data.dim() == 2:
+                        torch.nn.init.orthogonal_(p.data)
+                    # initialize biases to 1 (jozefowicz 2015)
+                    else:
+                        torch.nn.init.constant_(p.data[len(p)//4:len(p)//2], 1.0)
+            elif isinstance(m, torch.nn.GRU):
+                for p in m.parameters():
+                    torch.nn.init.orthogonal_(p.data)
+            elif isinstance(m, torch.nn.Conv2d):
+                for p in m.parameters():
+                    torch.nn.init.uniform_(p.data, -0.1, 0.1)
+        self.heat_1.apply(_wi)
+        self.heat_2.apply(_wi)
+        self.heat_3.apply(_wi)
+
+        self.upsample_3.apply(_wi)
+        self.upsample_2.apply(_wi)
+        self.upsample_1.apply(_wi)
 
 class ExpansionNet(nn.Module):
     """
