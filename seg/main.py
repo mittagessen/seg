@@ -25,7 +25,7 @@ def cli():
 @click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet']))
 @click.option('-b', '--batch-size', default=32, help='batch size')
 @click.option('-e', '--epochs', default=100, help='training time')
-@click.option('-l', '--lrate', default=0.01, help='initial learning rate')
+@click.option('-l', '--lrate', default=0.03, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
@@ -51,7 +51,7 @@ def train(name, arch, batch_size, epochs, lrate, workers, device, validation, th
     criterion = nn.CrossEntropyLoss()
 
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True)
     for epoch in range(epochs):
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
