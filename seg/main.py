@@ -36,9 +36,9 @@ def train(name, arch, batch_size, epochs, lrate, workers, device, validation, th
     torch.set_num_threads(threads)
 
     train_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(ground_truth), recursive=True))
-    train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True)
+    train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
     val_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(validation), recursive=True))
-    val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1)
+    val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
 
     device = torch.device(device)
 
