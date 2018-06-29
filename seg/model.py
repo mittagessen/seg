@@ -56,7 +56,7 @@ class ConvReNet(nn.Module):
     Baseline labelling network.
     """
     def __init__(self, cls):
-        super(ConvReNet,, self).__init__()
+        super(ConvReNet, self).__init__()
         squeeze = models.squeezenet1_1(pretrained=True)
         self.feat = squeeze.features[:5]
         for param in self.feat.parameters():
