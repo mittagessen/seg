@@ -23,7 +23,6 @@ def cli():
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
 @click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet']))
-@click.option('-b', '--batch-size', default=32, help='batch size')
 @click.option('-e', '--epochs', default=100, help='training time')
 @click.option('-l', '--lrate', default=0.03, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
@@ -31,7 +30,7 @@ def cli():
 @click.option('-v', '--validation', default='val', help='validation set location')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, batch_size, epochs, lrate, workers, device, validation, threads, ground_truth):
+def train(name, arch, epochs, lrate, workers, device, validation, threads, ground_truth):
 
     torch.set_num_threads(threads)
 
