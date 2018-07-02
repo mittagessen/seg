@@ -23,7 +23,7 @@ def cli():
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
 @click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet']))
-@click.option('-e', '--epochs', default=100, help='training time')
+@click.option('-e', '--epochs', default=1000, help='training time')
 @click.option('-l', '--lrate', default=0.03, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
