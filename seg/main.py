@@ -32,7 +32,7 @@ class EarlyStopping(object):
         self.min_delta = min_delta
         self.lag = lag
         self.it = it
-        self.best_loss = 0
+        self.best_loss = 1000000
         self.wait = 0
 
     def __iter__(self):
@@ -47,7 +47,7 @@ class EarlyStopping(object):
         """
         Updates the internal validation loss state
         """
-        if (val_loss - self.best_loss) < self.min_delta:
+        if (self.best_loss - val_loss) < self.min_delta:
             self.wait += 1
         else:
             self.wait = 0
