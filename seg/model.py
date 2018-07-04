@@ -55,12 +55,13 @@ class ConvReNet(nn.Module):
     """
     Baseline labelling network.
     """
-    def __init__(self, cls):
+    def __init__(self, cls, refine_encoder=False):
         super(ConvReNet, self).__init__()
         squeeze = models.squeezenet1_1(pretrained=True)
         self.feat = squeeze.features[:5]
-        for param in self.feat.parameters():
-            param.requires_grad = False
+        if not refine_encoder:
+            for param in self.feat.parameters():
+                param.requires_grad = False
         self.label = nn.Sequential(ReNet(128, 32), nn.Conv2d(64, cls, 1))
         self.init_weights()
 
@@ -95,14 +96,15 @@ class SqueezeSkipNet(nn.Module):
     """
     SqueezeNet encoder + SkipNet decoder
     """
-    def __init__(self, cls=4):
+    def __init__(self, cls=4, refine_encoder=False):
         super(SqueezeSkipNet, self).__init__()
         self.cls = cls
         # squeezenet feature extractor
         squeeze = models.squeezenet1_1(pretrained=True)
         self.feat = squeeze.features
-        for param in self.feat.parameters():
-            param.requires_grad = False
+        if not refine_encoder:
+            for param in self.feat.parameters():
+                param.requires_grad = False
         # convolutions to label space
         self.heat_1 = nn.Conv2d(128, cls, 1)
         self.heat_1_bn = nn.BatchNorm2d(cls)
