@@ -12,8 +12,9 @@ from torch.optim import lr_scheduler
 from model import ConvReNet, SqueezeSkipNet
 from dataset import BaselineSet
 
+from torchvision import transforms
 from scipy.misc import imshow, imsave
-
+from PIL import Image
 import click
 
 class EarlyStopping(object):
@@ -127,8 +128,43 @@ def evaluate(model, criterion, device, data_loader):
 @click.option('-m', '--model', default=None, help='model file')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
-def pred():
-    pass
+def pred(model, device, images):
+    m = SqueezeSkipNet(4)
+    m.load_state_dict(torch.load(model))
+    device = torch.device(device)
+    m.to(device)
+
+    transform = transforms.Compose([transforms.Resize(1200), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+    cmap = {0: (230, 25, 75, 127),
+            1: (60, 180, 75, 127),
+            2: (255, 225, 25, 127),
+            3: (0, 130, 200, 127)}
+
+    from kraken.binarization import nlbin
+
+    with torch.no_grad():
+        for img in images:
+            im = Image.open(img)
+            norm_im = transform(im)
+            o = m.forward(norm_im.unsqueeze(0))
+            o = torch.argmax(o, 1).squeeze()
+            # resample to original size
+            cls = np.array(Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST))
+            overlay = np.zeros(im.size[::-1] + (4,))
+            # create binarization
+            bin_im = nlbin(im)
+            bin_im = np.array(bin_im)
+            bin_im = 1 - (bin_im / bin_im.max())
+
+            for idx, val in cmap.items():
+                overlay[cls == idx] = val
+                layer = np.full(bin_im.shape, 255)
+                layer[cls == idx] = 0
+                Image.fromarray(layer.astype('uint8')).resize(im.size).save(os.path.splitext(img)[0] + '_class_{}.png'.format(idx))
+            im = Image.alpha_composite(im.convert('RGBA'), Image.fromarray(overlay.astype('uint8'))).resize(im.size)
+            im.save(os.path.splitext(img)[0] + '_overlay.png')
+
 
 if __name__ == '__main__':
     cli()
