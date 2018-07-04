@@ -64,7 +64,7 @@ def cli():
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
-@click.option('-w', '--refine-encoder/--freeze-encoder', default=False, help='Freeze pretrained encoder weights')
+@click.option('-r', '--refine-encoder/--freeze-encoder', default=False, help='Freeze pretrained encoder weights')
 @click.option('--lag', show_default=True, default=5, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
@@ -124,6 +124,9 @@ def evaluate(model, criterion, device, data_loader):
 
 
 @cli.command()
+@click.option('-m', '--model', default=None, help='model file')
+@click.option('-d', '--device', default='cpu', help='pytorch device')
+@click.argument('images', nargs=-1)
 def pred():
     pass
 
