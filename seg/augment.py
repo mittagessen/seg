@@ -29,7 +29,7 @@ def augment(images, labels, samples, output):
     p = Augmentor.Pipeline(images, output_directory=output)
     p.ground_truth(labels)
     p.random_distortion(probability=0.5, grid_width=4, grid_height=4, magnitude=8)
-    p.zoom_random(probability=0.5, percentage_area=0.9, randomise_percentage_area=True)
+    #p.zoom_random(probability=0.5, percentage_area=0.9, randomise_percentage_area=True)
     p.rotate(probability=0.7, max_left_rotation=10, max_right_rotation=10)
     p.sample(samples, multi_threaded=False)
 
