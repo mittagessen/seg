@@ -9,10 +9,11 @@ from PIL import Image
 
 
 class BaselineSet(data.Dataset):
-    def __init__(self, imgs):
+    def __init__(self, imgs, augment=True):
         super(BaselineSet, self).__init__()
         self.imgs = imgs
         self.targets = [os.path.splitext(x)[0] + '.png' for x in imgs]
+        self.augment = augment
 
     def __getitem__(self, idx):
         input = Image.open(self.imgs[idx]).convert('RGB')
@@ -27,13 +28,14 @@ class BaselineSet(data.Dataset):
         image = jitter(resize(image))
         target = resize(target)
 
-        if np.random.random() > 0.5:
-            image = tf.hflip(image)
-            target = tf.hflip(target)
+        if self.augment:
+            if np.random.random() > 0.5:
+                image = tf.hflip(image)
+                target = tf.hflip(target)
 
-        angle = np.random.uniform(-10, 10)
-        image = tf.rotate(image, angle, resample=Image.BICUBIC)
-        target = tf.rotate(target, angle, resample=Image.NEAREST)
+            angle = np.random.uniform(-10, 10)
+            image = tf.rotate(image, angle, resample=Image.BICUBIC)
+            target = tf.rotate(target, angle, resample=Image.NEAREST)
         image = tf.to_tensor(image)
 
         target = np.array(target)[:,:,2]
