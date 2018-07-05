@@ -66,7 +66,7 @@ def cli():
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
 @click.option('-r', '--refine-encoder/--freeze-encoder', default=False, help='Freeze pretrained encoder weights')
-@click.option('--lag', show_default=True, default=5, help='Number of epochs to wait before stopping training without improvement')
+@click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
@@ -90,7 +90,7 @@ def train(name, arch, lrate, workers, device, validation, threads, refine_encode
     criterion = nn.CrossEntropyLoss()
 
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
     for epoch, loader in enumerate(st_it):
