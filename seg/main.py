@@ -112,7 +112,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
                 optimizer.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss = evaluate(model, criterion, device, val_data_loader)
+        val_loss = evaluate(model, nn.CrossEntropyLoss(), device, val_data_loader)
         model.train()
         scheduler.step(val_loss)
         st_it.update(val_loss)
