@@ -69,10 +69,11 @@ def cli():
 @click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--augment/--no-augment', show_default=True, default=True, help='Enables/disables data augmentation')
+@click.option('--weigh-loss/--no-weigh-loss', show_default=True, default=True, help='Weighs cross entropy loss for class frequency')
 @click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, min_delta, augment, optimizer, threads, ground_truth):
+def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, min_delta, augment, weigh_loss, optimizer, threads, ground_truth):
 
     torch.set_num_threads(threads)
 
@@ -91,10 +92,13 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
     else:
         raise click
 
-    print('calculating class proportions')
-    weights = train_set.get_target_weights()
-    print(weights)
-    criterion = nn.CrossEntropyLoss(weights.to(device))
+    weights = None
+    if weigh_loss:
+        print('calculating class proportions')
+        weights = train_set.get_target_weights()
+        print(weights)
+        weights.to(device)
+    criterion = nn.CrossEntropyLoss(weights)
 
     if optimizer == 'SGD':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
