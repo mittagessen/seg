@@ -69,9 +69,10 @@ def cli():
 @click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--augment/--no-augment', show_default=True, default=True, help='Enables/disables data augmentation')
+@click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, min_delta, augment, threads, ground_truth):
+def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, min_delta, augment, optimizer, threads, ground_truth):
 
     torch.set_num_threads(threads)
 
@@ -95,7 +96,10 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
     print(weights)
     criterion = nn.CrossEntropyLoss(weights.to(device))
 
-    optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+    if optimizer == 'SGD':
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+    else:
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
