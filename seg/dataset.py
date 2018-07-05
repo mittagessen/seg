@@ -33,7 +33,7 @@ class BaselineSet(data.Dataset):
             for v, m in vals:
                 cnts[v] += np.count_nonzero(np.bitwise_and(target, m))
             tot += target.size
-        return cnts / tot
+        return 1 / (cnts / tot)
 
     def transform(self, image, target):
         resize = transforms.Resize(1200)
