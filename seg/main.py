@@ -82,13 +82,18 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
 
     device = torch.device(device)
 
+    print('loading network')
     if arch == 'SqueezeSkipNet':
         model = SqueezeSkipNet(4, refine_encoder).to(device)
     elif arch == 'ConvReNet':
         model = ConvReNet(4, refine_encoder).to(device)
     else:
         raise click
-    criterion = nn.CrossEntropyLoss()
+
+    print('calculating class proportions')
+    weights = train_set.get_target_weights()
+    print(weights)
+    criterion = nn.CrossEntropyLoss(weights)
 
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
