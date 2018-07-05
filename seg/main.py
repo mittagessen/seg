@@ -93,7 +93,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
     print('calculating class proportions')
     weights = train_set.get_target_weights()
     print(weights)
-    criterion = nn.CrossEntropyLoss(weights)
+    criterion = nn.CrossEntropyLoss(weights.to(device))
 
     optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
