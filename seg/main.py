@@ -120,22 +120,24 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
                 optimizer.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss = evaluate(model, nn.CrossEntropyLoss(), device, val_data_loader)
+        val_loss = evaluate(model, device, val_data_loader)
         model.train()
         scheduler.step(val_loss)
         st_it.update(val_loss)
         print("===> epoch {} validation loss: {:.4f}".format(epoch, val_loss))
         #imsave('epoch_{}.png'.format(epoch), o.detach().squeeze().numpy())
 
-def evaluate(model, criterion, device, data_loader):
+def evaluate(model, device, data_loader):
    model.eval()
-   val_loss = 0.0
+   accuracy = 0.0
    with torch.no_grad():
         for sample in data_loader:
             input, target = sample[0].to(device), sample[1].to(device)
             o = model(input)
-            val_loss += float(criterion(o, target))
-   return val_loss / len(data_loader)
+            pred = torch.argmax(o, 1).squeeze()
+            tp = float(pred.eq(target).sum())
+            accuracy += tp / len(target.view(-1))
+   return accuracy / len(data_loader)
 
 
 @cli.command()
