@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
+import torch.nn.functional as F
 
 from model import ConvReNet, SqueezeSkipNet
 from dataset import BaselineSet
@@ -33,7 +34,7 @@ class EarlyStopping(object):
         self.min_delta = min_delta
         self.lag = lag
         self.it = it
-        self.best_loss = 1000000
+        self.best_loss = 0
         self.wait = 0
 
     def __iter__(self):
@@ -48,7 +49,7 @@ class EarlyStopping(object):
         """
         Updates the internal validation loss state
         """
-        if (self.best_loss - val_loss) < self.min_delta:
+        if (val_loss - self.best_loss) < self.min_delta:
             self.wait += 1
         else:
             self.wait = 0
@@ -104,7 +105,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     else:
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
     for epoch, loader in enumerate(st_it):
@@ -120,24 +121,31 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
                 optimizer.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss = evaluate(model, device, val_data_loader)
+        val_loss, thresh_loss = evaluate(model, device, val_data_loader)
         model.train()
         scheduler.step(val_loss)
         st_it.update(val_loss)
-        print("===> epoch {} validation loss: {:.4f}".format(epoch, val_loss))
+        print("===> epoch {} validation loss: {:.4f} (thresholded: {:.4f})".format(epoch, val_loss, thresh_loss))
         #imsave('epoch_{}.png'.format(epoch), o.detach().squeeze().numpy())
 
-def evaluate(model, device, data_loader):
+def evaluate(model, device, data_loader, threshold=0.5):
+   """
+   Calculates argmax and softmax > 0.5 thresholded accuracy.
+   """
    model.eval()
-   accuracy = 0.0
+   aaccuracy = 0.0
+   taccuracy = 0.0
    with torch.no_grad():
         for sample in data_loader:
             input, target = sample[0].to(device), sample[1].to(device)
             o = model(input)
             pred = torch.argmax(o, 1).squeeze()
             tp = float(pred.eq(target).sum())
-            accuracy += tp / len(target.view(-1))
-   return accuracy / len(data_loader)
+            aaccuracy += tp / len(target.view(-1))
+            pred = torch.argmax((F.softmax(o, dim=1) > 0.5).squeeze(), dim=0)
+            tp = float(pred.eq(target).sum())
+            taccuracy += tp / len(target.view(-1))
+   return aaccuracy / len(data_loader), taccuracy / len(data_loader)
 
 
 @cli.command()
