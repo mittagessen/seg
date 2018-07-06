@@ -76,6 +76,8 @@ def cli():
 @click.argument('ground_truth', nargs=1)
 def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, min_delta, augment, weigh_loss, optimizer, threads, ground_truth):
 
+    print('model output name: {}'.format(name))
+
     torch.set_num_threads(threads)
 
     train_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(ground_truth), recursive=True), augment=augment)
@@ -98,7 +100,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
         print('calculating class proportions')
         weights = train_set.get_target_weights()
         print(weights)
-        weights.to(device)
+        weights = weights.to(device)
     criterion = nn.CrossEntropyLoss(weights)
 
     if optimizer == 'SGD':
