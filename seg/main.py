@@ -18,6 +18,9 @@ from scipy.misc import imshow, imsave
 from PIL import Image
 import click
 
+import pydensecrf.densecrf as dcrf
+from pydensecrf.utils import unary_from_softmax
+
 class EarlyStopping(object):
     """
     Early stopping to terminate training when validation loss doesn't improve
@@ -72,9 +75,12 @@ def cli():
 @click.option('--augment/--no-augment', show_default=True, default=True, help='Enables/disables data augmentation')
 @click.option('--weigh-loss/--no-weigh-loss', show_default=True, default=True, help='Weighs cross entropy loss for class frequency')
 @click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
+@click.option('--crf/--no-crf', show_default=True, default=True, help='enables CRF postprocessing')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, min_delta, augment, weigh_loss, optimizer, threads, ground_truth):
+def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
+          min_delta, augment, weigh_loss, optimizer, crf, threads,
+          ground_truth):
 
     print('model output name: {}'.format(name))
 
@@ -123,32 +129,51 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag, m
                 optimizer.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss, thresh_loss = evaluate(model, device, val_data_loader)
+        val_loss, thresh_loss, crf_loss = evaluate(model, device, val_data_loader)
         model.train()
         scheduler.step(val_loss)
         st_it.update(val_loss)
-        print("===> epoch {} validation loss: {:.4f} (thresholded: {:.4f})".format(epoch, val_loss, thresh_loss))
+        print("===> epoch {} validation loss: {:.4f} (thresholded: {:.4f}, crf: {:.4f})".format(epoch, val_loss, thresh_loss, crf_loss))
         #imsave('epoch_{}.png'.format(epoch), o.detach().squeeze().numpy())
 
 def evaluate(model, device, data_loader, threshold=0.5):
    """
-   Calculates argmax and softmax > 0.5 thresholded accuracy.
+   Calculates argmax and softmax > 0.5 thresholded accuracy, + accuracy after
+   CRF postprocessing.
    """
    model.eval()
    aaccuracy = 0.0
    taccuracy = 0.0
+   caccuracy = 0.0
    with torch.no_grad():
         for sample in data_loader:
             input, target = sample[0].to(device), sample[1].to(device)
             o = model(input)
+            # argmax accuracy
             pred = torch.argmax(o, 1).squeeze()
             tp = float(pred.eq(target).sum())
             aaccuracy += tp / len(target.view(-1))
-            pred = torch.argmax((F.softmax(o, dim=1) > 0.5).squeeze(), dim=0)
+            # thresholded accuracy
+            probs = F.softmax(o, dim=1).squeeze()
+            pred = torch.argmax(probs > 0.5, dim=0)
             tp = float(pred.eq(target).sum())
             taccuracy += tp / len(target.view(-1))
-   return aaccuracy / len(data_loader), taccuracy / len(data_loader)
+            # crf accuracy
+            pred = run_crf(data_loader.dataset.input, probs)
+            tp = float(pred.eq(target.squeeze()).sum())
+            caccuracy += tp / len(target.view(-1))
+   return aaccuracy / len(data_loader), taccuracy / len(data_loader), caccuracy / len(data_loader)
 
+def run_crf(img, output):
+    d = dcrf.DenseCRF2D(img.size[0], img.size[1], output.size(0))
+    # unary energy
+    # 4 x H x W
+    u = unary_from_softmax(output.detach().numpy())
+    d.setUnaryEnergy(u)
+    d.addPairwiseGaussian(sxy=(3, 3), compat=3, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
+    d.addPairwiseBilateral(sxy=(80, 80), srgb=(13, 13, 13), rgbim=np.array(img), compat=10, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
+    q = d.inference(5)
+    return torch.tensor(np.argmax(q, axis=0)).reshape(*img.size[::-1])
 
 @cli.command()
 @click.option('-m', '--model', default=None, help='model file')
@@ -160,6 +185,7 @@ def pred(model, device, images):
     device = torch.device(device)
     m.to(device)
 
+    resize = transforms.Resize(1200)
     transform = transforms.Compose([transforms.Resize(1200), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
     cmap = {0: (230, 25, 75, 127),
@@ -174,7 +200,8 @@ def pred(model, device, images):
             im = Image.open(img)
             norm_im = transform(im)
             o = m.forward(norm_im.unsqueeze(0))
-            o = torch.argmax(o, 1).squeeze()
+            probs = F.softmax(o, dim=1).squeeze()
+            o = run_crf(resize(im), probs)
             # resample to original size
             cls = np.array(Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST))
             overlay = np.zeros(im.size[::-1] + (4,))

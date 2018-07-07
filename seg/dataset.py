@@ -40,7 +40,8 @@ class BaselineSet(data.Dataset):
         jitter = transforms.ColorJitter()
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-        image = jitter(resize(image))
+        self.input = resize(image)
+        image = jitter(self.input)
         target = resize(target)
 
         if self.augment:
