@@ -172,7 +172,7 @@ def run_crf(img, output):
     d = dcrf.DenseCRF2D(img.size[0], img.size[1], output.size(0))
     # unary energy
     # 4 x H x W
-    u = unary_from_softmax(output.detach().numpy())
+    u = unary_from_softmax(output.cpu().detach().numpy())
     d.setUnaryEnergy(u)
     d.addPairwiseGaussian(sxy=(3, 3), compat=3, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
     d.addPairwiseBilateral(sxy=(49, 49), srgb=(5, 5, 5), rgbim=np.array(img), compat=10, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
