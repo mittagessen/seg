@@ -40,8 +40,8 @@ class BaselineSet(data.Dataset):
         jitter = transforms.ColorJitter()
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-        self.input = resize(image)
-        image = jitter(self.input)
+        res = resize(image)
+        image = jitter(res)
         target = resize(target)
 
         if self.augment:
@@ -60,7 +60,7 @@ class BaselineSet(data.Dataset):
         for v, m in vals:
             l[np.bitwise_and(m, target) != 0] = v
         target = torch.LongTensor(l)
-        return norm(image), target
+        return norm(image), target, res
 
     def __len__(self):
         return len(self.imgs)

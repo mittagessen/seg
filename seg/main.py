@@ -161,7 +161,7 @@ def evaluate(model, device, data_loader, threshold=0.5):
             tp = float(pred.eq(target).sum())
             taccuracy += tp / len(target.view(-1))
             # crf accuracy
-            pred = run_crf(data_loader.dataset.input, probs)
+            pred = run_crf(sample[2], probs)
             tp = float(pred.eq(target.squeeze()).sum())
             caccuracy += tp / len(target.view(-1))
    return aaccuracy / len(data_loader), taccuracy / len(data_loader), caccuracy / len(data_loader)
