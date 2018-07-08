@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import numpy as np
 
+import torchvision.transforms.functional as tf
+
 import os
 import glob
 import torch
@@ -161,7 +163,7 @@ def evaluate(model, device, data_loader, threshold=0.5):
             tp = float(pred.eq(target).sum())
             taccuracy += tp / len(target.view(-1))
             # crf accuracy
-            pred = run_crf(sample[2], probs)
+            pred = run_crf(tf.to_pil_image(sample[2]), probs)
             tp = float(pred.eq(target.squeeze()).sum())
             caccuracy += tp / len(target.view(-1))
    return aaccuracy / len(data_loader), taccuracy / len(data_loader), caccuracy / len(data_loader)

@@ -60,7 +60,7 @@ class BaselineSet(data.Dataset):
         for v, m in vals:
             l[np.bitwise_and(m, target) != 0] = v
         target = torch.LongTensor(l)
-        return norm(image), target, res
+        return norm(image), target, tf.to_tensor(res)
 
     def __len__(self):
         return len(self.imgs)
