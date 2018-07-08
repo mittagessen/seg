@@ -151,7 +151,7 @@ def evaluate(model, device, data_loader, threshold=0.5):
    caccuracy = 0.0
    with torch.no_grad():
         for sample in data_loader:
-            input, target = sample[0].to(device), sample[1].to(device)
+            input, target, res = sample[0].to(device), sample[1].to(device), tf.to_pil_image(sample[2].squeeze())
             o = model(input)
             # argmax accuracy
             pred = torch.argmax(o, 1).squeeze()
@@ -163,7 +163,7 @@ def evaluate(model, device, data_loader, threshold=0.5):
             tp = float(pred.eq(target).sum())
             taccuracy += tp / len(target.view(-1))
             # crf accuracy
-            pred = run_crf(tf.to_pil_image(sample[2]), probs)
+            pred = run_crf(res, probs)
             tp = float(pred.eq(target.squeeze()).sum())
             caccuracy += tp / len(target.view(-1))
    return aaccuracy / len(data_loader), taccuracy / len(data_loader), caccuracy / len(data_loader)
