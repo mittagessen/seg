@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from model import ConvReNet, SqueezeSkipNet
+from model import ConvReNet, SqueezeSkipNet, ResSkipNet
 from dataset import BaselineSet
 
 from torchvision import transforms
@@ -64,7 +64,7 @@ def cli():
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
-@click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet']))
+@click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResSkipNet']))
 @click.option('-l', '--lrate', default=0.03, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
@@ -98,8 +98,10 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         model = SqueezeSkipNet(4, refine_encoder).to(device)
     elif arch == 'ConvReNet':
         model = ConvReNet(4, refine_encoder).to(device)
+    elif arch == 'ResSkipNet':
+        model = ResSkipNet(4, refine_encoder).to(device)
     else:
-        raise click
+        raise Exception('invalid model type selected')
 
     weights = None
     if weigh_loss:
@@ -171,7 +173,7 @@ def run_crf(img, output):
     u = unary_from_softmax(output.detach().numpy())
     d.setUnaryEnergy(u)
     d.addPairwiseGaussian(sxy=(3, 3), compat=3, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
-    d.addPairwiseBilateral(sxy=(80, 80), srgb=(13, 13, 13), rgbim=np.array(img), compat=10, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
+    d.addPairwiseBilateral(sxy=(49, 49), srgb=(5, 5, 5), rgbim=np.array(img), compat=10, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC)
     q = d.inference(5)
     return torch.tensor(np.argmax(q, axis=0)).reshape(*img.size[::-1])
 
@@ -197,11 +199,15 @@ def pred(model, device, images):
 
     with torch.no_grad():
         for img in images:
+            print('transforming image {}'.format(img))
             im = Image.open(img)
             norm_im = transform(im)
+            print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
             probs = F.softmax(o, dim=1).squeeze()
+            print('CRF postprocessing')
             o = run_crf(resize(im), probs)
+            print('result extraction')
             # resample to original size
             cls = np.array(Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST))
             overlay = np.zeros(im.size[::-1] + (4,))
@@ -215,6 +221,7 @@ def pred(model, device, images):
                 layer = np.full(bin_im.shape, 255)
                 layer[cls == idx] = 0
                 Image.fromarray(layer.astype('uint8')).resize(im.size).save(os.path.splitext(img)[0] + '_class_{}.png'.format(idx))
+            print('saving output(s)')
             im = Image.alpha_composite(im.convert('RGBA'), Image.fromarray(overlay.astype('uint8'))).resize(im.size)
             im.save(os.path.splitext(img)[0] + '_overlay.png')
 
