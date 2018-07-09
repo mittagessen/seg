@@ -57,16 +57,16 @@ class ConvReNet(nn.Module):
     """
     def __init__(self, cls, refine_encoder=False):
         super(ConvReNet, self).__init__()
-        squeeze = models.squeezenet1_1(pretrained=True)
-        self.feat = squeeze.features[:5]
+        # we just need the first conv layer
+        self.resnet = models.resnet18(pretrained=True)
         if not refine_encoder:
-            for param in self.feat.parameters():
+            for param in self.resnet.parameters():
                 param.requires_grad = False
-        self.label = nn.Sequential(ReNet(128, 32), nn.Conv2d(64, cls, 1))
+        self.label = nn.Sequential(ReNet(64, 32), nn.Conv2d(64, cls, 1))
         self.init_weights()
 
     def forward(self, inputs):
-        features = self.feat(inputs)
+        features = self.resnet.conv1(inputs)
         o = self.label(features)
         o = F.upsample(o, inputs.shape[2:], mode='bilinear')
         return o
@@ -100,7 +100,7 @@ class ResSkipNet(nn.Module):
         super(ResSkipNet, self).__init__()
         self.cls = cls
         # squeezenet feature extractor
-        self.resnet = models.resnet50(pretrained=True)
+        self.resnet = models.resnet101(pretrained=True)
         if not refine_encoder:
             for param in self.resnet.parameters():
                 param.requires_grad = False
