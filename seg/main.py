@@ -117,7 +117,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     else:
         opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
-    scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='max', verbose=True)
+    scheduler = lr_scheduler.ReduceLROnPlateau(opti, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
     for epoch, loader in enumerate(st_it):
