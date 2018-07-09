@@ -41,7 +41,8 @@ class BaselineSet(data.Dataset):
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
         res = resize(image)
-        image = jitter(res)
+        image = res
+        #image = jitter(res)
         target = resize(target)
 
         if self.augment:

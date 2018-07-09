@@ -114,9 +114,9 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
     criterion = nn.CrossEntropyLoss(weights)
 
     if optimizer == 'SGD':
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     else:
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
@@ -125,17 +125,18 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
                 input, target = sample[0].to(device), sample[1].to(device)
-                optimizer.zero_grad()
+                opti.zero_grad()
                 o = model(input)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()
-                optimizer.step()
+                opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
         val_loss, thresh_loss, crf_loss = evaluate(model, device, val_data_loader)
         model.train()
-        scheduler.step(val_loss)
+        if optimizer == 'SGD':
+            scheduler.step(val_loss)
         st_it.update(val_loss)
         print("===> epoch {} validation loss: {:.4f} (thresholded: {:.4f}, crf: {:.4f})".format(epoch, val_loss, thresh_loss, crf_loss))
         #imsave('epoch_{}.png'.format(epoch), o.detach().squeeze().numpy())
