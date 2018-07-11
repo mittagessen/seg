@@ -174,7 +174,11 @@ class ResSkipNet(nn.Module):
         self.heat_1.apply(_wi)
         self.heat_2.apply(_wi)
         self.heat_3.apply(_wi)
+        self.heat_4.apply(_wi)
+        self.heat_5.apply(_wi)
 
+        self.upsample_5.apply(_wi)
+        self.upsample_4.apply(_wi)
         self.upsample_3.apply(_wi)
         self.upsample_2.apply(_wi)
         self.upsample_1.apply(_wi)
