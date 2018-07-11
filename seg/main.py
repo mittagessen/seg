@@ -16,7 +16,6 @@ from model import ConvReNet, SqueezeSkipNet, ResSkipNet
 from dataset import BaselineSet
 
 from torchvision import transforms
-from scipy.misc import imshow, imsave
 from PIL import Image
 import click
 
@@ -139,7 +138,6 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
             scheduler.step(val_loss)
         st_it.update(val_loss)
         print("===> epoch {} validation loss: {:.4f} (thresholded: {:.4f}, crf: {:.4f})".format(epoch, val_loss, thresh_loss, crf_loss))
-        #imsave('epoch_{}.png'.format(epoch), o.detach().squeeze().numpy())
 
 def evaluate(model, device, data_loader, threshold=0.5):
    """
