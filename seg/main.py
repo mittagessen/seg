@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from model import ConvReNet, SqueezeSkipNet, ResSkipNet
-from dataset import BaselineSet
+from seg.model import ConvReNet, SqueezeSkipNet, ResSkipNet
+from seg.dataset import BaselineSet
 
 from torchvision import transforms
 from PIL import Image

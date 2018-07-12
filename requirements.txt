@@ -2,3 +2,4 @@ pydensecrf
 numpy
 torchvision
 torch>=0.4.0
+click
