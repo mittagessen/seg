@@ -183,7 +183,7 @@ def run_crf(img, output):
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
 def pred(model, device, images):
-    m = SqueezeSkipNet(4)
+    m = ResSkipNet(4)
     m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
     device = torch.device(device)
     m.to(device)
