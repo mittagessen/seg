@@ -57,18 +57,21 @@ class ConvReNet(nn.Module):
     """
     def __init__(self, cls, refine_encoder=False):
         super(ConvReNet, self).__init__()
-        # we just need the first conv layer
-        self.resnet = models.resnet18(pretrained=True)
+        self.cls = cls
+        self.resnet = models.resnet50(pretrained=True)
         if not refine_encoder:
             for param in self.resnet.parameters():
                 param.requires_grad = False
-        self.label = nn.Sequential(ReNet(64, 32), nn.Conv2d(64, cls, 1))
+        self.label = nn.Sequential(ReNet(256, 32), nn.Conv2d(64, cls, 1))
+        self.upsample = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
         self.init_weights()
 
     def forward(self, inputs):
+        siz = inputs.size()
         features = self.resnet.conv1(inputs)
+        features = self.resnet.layer1(features)
         o = self.label(features)
-        o = F.upsample(o, inputs.shape[2:], mode='bilinear')
+        o = self.upsample(o, output_size=(siz[0], self.cls, siz[2], siz[3]))
         return o
 
     def init_weights(self):
@@ -91,6 +94,7 @@ class ConvReNet(nn.Module):
                 for p in m.parameters():
                     torch.nn.init.uniform_(p.data, -0.1, 0.1)
         self.label.apply(_wi)
+        self.upsample.apply(_wi)
 
 class ResSkipNet(nn.Module):
     """
