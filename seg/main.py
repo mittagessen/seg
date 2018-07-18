@@ -183,7 +183,7 @@ def run_crf(img, output):
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
 def pred(model, device, images):
-    m = ResSkipNet(4)
+    m = ConvReNet(4)
     m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
     device = torch.device(device)
     m.to(device)
@@ -199,7 +199,7 @@ def pred(model, device, images):
     with torch.no_grad():
         for img in images:
             print('transforming image {}'.format(img))
-            im = Image.open(img)
+            im = Image.open(img).convert('RGB')
             norm_im = transform(im)
             print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
