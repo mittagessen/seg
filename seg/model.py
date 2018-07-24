@@ -69,7 +69,7 @@ class ConvReNet(nn.Module):
     def forward(self, inputs):
         siz = inputs.size()
         features = self.resnet.conv1(inputs)
-        features = self.resnet.layer1(features)
+        features = self.dropout2dself.resnet.layer1(features)
         o = self.label(features)
         o = self.upsample(o, output_size=(siz[0], self.cls, siz[2], siz[3]))
         return o
@@ -138,24 +138,24 @@ class ResSkipNet(nn.Module):
         x = self.resnet.relu(x)
         # reduction factor 4
         map_2 = self.resnet.maxpool(x)
-        x = self.dropout(self.resnet.layer1(map_2))
+        x = self.resnet.layer1(map_2)
         # reduction factor 8
-        map_3 = self.dropout(self.resnet.layer2(x))
+        map_3 = self.resnet.layer2(x)
         # reduction factor 16
-        map_4 = self.dropout(self.resnet.layer3(map_3))
-        map_5 = self.dropout(self.resnet.layer4(map_4))
+        map_4 = self.resnet.layer3(map_3)
+        map_5 = self.resnet.layer4(map_4)
 
-        map_1 = F.relu(self.heat_1(map_1))
-        map_2 = F.relu(self.heat_2(map_2))
-        map_3 = F.relu(self.heat_3(map_3))
-        map_4 = F.relu(self.heat_4(map_4))
-        map_5 = F.relu(self.heat_5(map_5))
+        map_1 = F.relu(self.dropout(self.heat_1(self.dropout(map_1))))
+        map_2 = F.relu(self.dropout(self.heat_2(self.dropout(map_2))))
+        map_3 = F.relu(self.dropout(self.heat_3(self.dropout(map_3))))
+        map_4 = F.relu(self.dropout(self.heat_4(self.dropout(map_4))))
+        map_5 = F.relu(self.dropout(self.heat_5(self.dropout(map_5))))
 
         # upsample using heat maps
-        map_4 = map_4 + self.upsample_5(map_5, output_size=map_4.shape)
-        map_3 = map_3 + self.upsample_4(map_4, output_size=map_3.shape)
-        map_2 = map_2 + self.upsample_3(map_3, output_size=map_2.shape)
-        map_1 = map_1 + self.upsample_2(map_2, output_size=map_1.shape)
+        map_4 = map_4 + self.dropout(self.upsample_5(map_5, output_size=map_4.shape))
+        map_3 = map_3 + self.dropout(self.upsample_4(map_4, output_size=map_3.shape))
+        map_2 = map_2 + self.dropout(self.upsample_3(map_3, output_size=map_2.shape))
+        map_1 = map_1 + self.dropout(self.upsample_2(map_2, output_size=map_1.shape))
         return self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3]))
 
     def init_weights(self):
