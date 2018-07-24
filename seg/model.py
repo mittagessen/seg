@@ -115,6 +115,8 @@ class ResSkipNet(nn.Module):
         self.heat_4 = nn.Conv2d(1024, cls, 1)
         self.heat_5 = nn.Conv2d(2048, cls, 1)
 
+        self.dropout = torch.nn.Dropout2d(0.1)
+
         # upsampling of label space heat maps
         # upsamples map_5 to size of map_4
         self.upsample_5 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
@@ -136,12 +138,12 @@ class ResSkipNet(nn.Module):
         x = self.resnet.relu(x)
         # reduction factor 4
         map_2 = self.resnet.maxpool(x)
-        x = self.resnet.layer1(map_2)
+        x = self.dropout(self.resnet.layer1(map_2))
         # reduction factor 8
-        map_3 = self.resnet.layer2(x)
+        map_3 = self.dropout(self.resnet.layer2(x))
         # reduction factor 16
-        map_4 = self.resnet.layer3(map_3)
-        map_5 = self.resnet.layer4(map_4)
+        map_4 = self.dropout(self.resnet.layer3(map_3))
+        map_5 = self.dropout(self.resnet.layer4(map_4))
 
         map_1 = F.relu(self.heat_1(map_1))
         map_2 = F.relu(self.heat_2(map_2))
