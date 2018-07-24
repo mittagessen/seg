@@ -58,22 +58,19 @@ class ConvReNet(nn.Module):
     def __init__(self, cls, refine_encoder=False):
         super(ConvReNet, self).__init__()
         self.cls = cls
-        resnet = models.resnet50(pretrained=True)
+        self.resnet = models.resnet50(pretrained=True)
         if not refine_encoder:
-            for param in resnet.parameters():
+            for param in self.resnet.parameters():
                 param.requires_grad = False
-        self.net = nn.Sequential(resnet.conv1,
-                                 resnet.layer1,
-                                 ReNet(256, 32),
-                                 ReNet(64, 32),
-                                 nn.Conv2d(64, cls, 1))
-
+        self.label = nn.Sequential(ReNet(256, 32), nn.Conv2d(64, cls, 1))
         self.upsample = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
         self.init_weights()
 
     def forward(self, inputs):
         siz = inputs.size()
-        o = self.net(inputs)
+        features = self.resnet.conv1(inputs)
+        features = self.resnet.layer1(features)
+        o = self.label(features)
         o = self.upsample(o, output_size=(siz[0], self.cls, siz[2], siz[3]))
         return o
 
@@ -96,7 +93,7 @@ class ConvReNet(nn.Module):
             elif isinstance(m, torch.nn.Conv2d):
                 for p in m.parameters():
                     torch.nn.init.uniform_(p.data, -0.1, 0.1)
-        self.net[2:].apply(_wi)
+        self.label.apply(_wi)
         self.upsample.apply(_wi)
 
 class ResSkipNet(nn.Module):
