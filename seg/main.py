@@ -149,7 +149,7 @@ def evaluate(model, device, data_loader, threshold=0.5):
          for sample in data_loader:
              input, target, res = sample[0].to(device), sample[1].to(device), tf.to_pil_image(sample[2].squeeze())
              o = model(input)
-             pred = hysteresis_thresh(o.detach().squeeze().numpy(), 0.3, 0.5)
+             pred = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
              tp = float((pred == target).sum())
              accuracy += tp / len(target.view(-1))
     return accuracy / len(data_loader)
