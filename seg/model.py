@@ -128,6 +128,7 @@ class ResSkipNet(nn.Module):
         self.upsample_2 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
         # upsamples map_1 to original output size
         self.upsample_1 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        self.nonlin = nn.Sigmoid()
         self.init_weights()
 
     def forward(self, inputs):
@@ -156,7 +157,7 @@ class ResSkipNet(nn.Module):
         map_3 = map_3 + self.dropout(self.upsample_4(map_4, output_size=map_3.shape))
         map_2 = map_2 + self.dropout(self.upsample_3(map_3, output_size=map_2.shape))
         map_1 = map_1 + self.dropout(self.upsample_2(map_2, output_size=map_1.shape))
-        return self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3]))
+        return self.nonlin(self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3])))
 
     def init_weights(self):
         def _wi(m):

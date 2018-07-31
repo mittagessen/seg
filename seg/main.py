@@ -19,8 +19,7 @@ from torchvision import transforms
 from PIL import Image
 import click
 
-import pydensecrf.densecrf as dcrf
-from pydensecrf.utils import unary_from_softmax
+from scipy.ndimage import label
 
 class EarlyStopping(object):
     """
@@ -96,21 +95,15 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
 
     print('loading network')
     if arch == 'SqueezeSkipNet':
-        model = SqueezeSkipNet(4, refine_encoder).to(device)
+        model = SqueezeSkipNet(1, refine_encoder).to(device)
     elif arch == 'ConvReNet':
-        model = ConvReNet(4, refine_encoder).to(device)
+        model = ConvReNet(1, refine_encoder).to(device)
     elif arch == 'ResSkipNet':
-        model = ResSkipNet(4, refine_encoder).to(device)
+        model = ResSkipNet(1, refine_encoder).to(device)
     else:
         raise Exception('invalid model type selected')
 
-    weights = None
-    if weigh_loss:
-        print('calculating class proportions')
-        weights = train_set.get_target_weights()
-        print(weights)
-        weights = weights.to(device)
-    criterion = nn.CrossEntropyLoss(weights)
+    criterion = nn.MSELoss()
 
     if optimizer == 'SGD':
         opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
@@ -118,7 +111,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
     scheduler = lr_scheduler.ReduceLROnPlateau(opti, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
-
+    val_loss = 1.0
     for epoch, loader in enumerate(st_it):
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
@@ -132,40 +125,34 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
                 opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss, thresh_loss, crf_loss = evaluate(model, device, val_data_loader)
+        val_loss = evaluate(model, device, val_data_loader)
         model.train()
         if optimizer == 'SGD':
             scheduler.step(val_loss)
         st_it.update(val_loss)
-        print("===> epoch {} validation loss: {:.4f} (thresholded: {:.4f}, crf: {:.4f})".format(epoch, val_loss, thresh_loss, crf_loss))
+        print("===> epoch {} validation loss: {:.4f}".format(epoch, val_loss))
+
+def hysteresis_thresh(im, low, high):
+    lower = im > low
+    components, count = label(lower, np.ones((3, 3)))
+    valid = np.unique(components[lower & (im > high)])
+    lm = np.zeros((count + 1,), bool)
+    lm[valid] = True
+    return lm[components]
 
 def evaluate(model, device, data_loader, threshold=0.5):
-   """
-   Calculates argmax and softmax > 0.5 thresholded accuracy, + accuracy after
-   CRF postprocessing.
-   """
-   model.eval()
-   aaccuracy = 0.0
-   taccuracy = 0.0
-   caccuracy = 0.0
-   with torch.no_grad():
-        for sample in data_loader:
-            input, target, res = sample[0].to(device), sample[1].to(device), tf.to_pil_image(sample[2].squeeze())
-            o = model(input)
-            # argmax accuracy
-            pred = torch.argmax(o, 1).squeeze()
-            tp = float(pred.eq(target).sum())
-            aaccuracy += tp / len(target.view(-1))
-            # thresholded accuracy
-            probs = F.softmax(o, dim=1).squeeze()
-            pred = torch.argmax(probs > 0.5, dim=0)
-            tp = float(pred.eq(target).sum())
-            taccuracy += tp / len(target.view(-1))
-            # crf accuracy
-            pred = run_crf(res, probs)
-            tp = float(pred.eq(target.cpu().squeeze()).sum())
-            caccuracy += tp / len(target.view(-1))
-   return aaccuracy / len(data_loader), taccuracy / len(data_loader), caccuracy / len(data_loader)
+    """
+    """
+    model.eval()
+    accuracy = 0.0
+    with torch.no_grad():
+         for sample in data_loader:
+             input, target, res = sample[0].to(device), sample[1].to(device), tf.to_pil_image(sample[2].squeeze())
+             o = model(input)
+             pred = hysteresis_thresh(o.detach().squeeze().numpy(), 0.3, 0.5)
+             tp = float((pred == target).sum())
+             accuracy += tp / len(target.view(-1))
+    return accuracy / len(data_loader)
 
 def run_crf(img, output):
     d = dcrf.DenseCRF2D(img.size[0], img.size[1], output.size(0))
