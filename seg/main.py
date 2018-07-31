@@ -170,18 +170,13 @@ def run_crf(img, output):
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
 def pred(model, device, images):
-    m = ConvReNet(4)
+    m = ResSkipNet(1)
     m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
     device = torch.device(device)
     m.to(device)
 
     resize = transforms.Resize(1200)
     transform = transforms.Compose([transforms.Resize(1200), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-
-    cmap = {0: (230, 25, 75, 127),
-            1: (60, 180, 75, 127),
-            2: (255, 225, 25, 127),
-            3: (0, 130, 200, 127)}
 
     with torch.no_grad():
         for img in images:
@@ -190,22 +185,13 @@ def pred(model, device, images):
             norm_im = transform(im)
             print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
-            probs = F.softmax(o, dim=1).squeeze()
-            print('CRF postprocessing')
-            o = run_crf(resize(im), probs)
+            cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
+            cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
+            o = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
             print('result extraction')
             # resample to original size
-            cls = np.array(Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST))
-            overlay = np.zeros(im.size[::-1] + (4,))
-
-            for idx, val in cmap.items():
-                overlay[cls == idx] = val
-                layer = np.full(im.size[::-1], 255)
-                layer[cls == idx] = 0
-                Image.fromarray(layer.astype('uint8')).resize(im.size).save(os.path.splitext(img)[0] + '_class_{}.png'.format(idx))
-            print('saving output(s)')
-            im = Image.alpha_composite(im.convert('RGBA'), Image.fromarray(overlay.astype('uint8'))).resize(im.size)
-            im.save(os.path.splitext(img)[0] + '_overlay.png')
+            cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
+            cls.save(os.path.splitext(img)[0] + '_class.png')
 
 
 if __name__ == '__main__':
