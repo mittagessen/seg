@@ -140,14 +140,14 @@ def hysteresis_thresh(im, low, high):
     lm[valid] = True
     return lm[components]
 
-def evaluate(model, device, data_loader, threshold=0.5):
+def evaluate(model, device, data_loader):
     """
     """
     model.eval()
     accuracy = 0.0
     with torch.no_grad():
          for sample in data_loader:
-             input, target, res = sample[0].to(device), sample[1].to(device), tf.to_pil_image(sample[2].squeeze())
+             input, target = sample[0].to(device), sample[1].to(device)
              o = model(input)
              pred = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
              tp = float((pred == target).sum())
