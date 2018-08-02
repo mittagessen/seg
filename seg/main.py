@@ -114,6 +114,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
                 input, target = sample[0].to(device), sample[1].to(device)
+                print('{} {}'.format(input.shape, target.shape))
                 opti.zero_grad()
                 o = model(input)
                 loss = criterion(o, target)
@@ -122,12 +123,12 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
                 opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss = evaluate(model, device, val_data_loader)
+        val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
         model.train()
         if optimizer == 'SGD':
             scheduler.step(val_loss)
         st_it.update(val_loss)
-        print("===> epoch {} validation loss: {:.4f}".format(epoch, val_loss))
+        print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
 
 def hysteresis_thresh(im, low, high):
     lower = im > low
@@ -137,11 +138,12 @@ def hysteresis_thresh(im, low, high):
     lm[valid] = True
     return lm[components]
 
-def evaluate(model, device, data_loader):
+def evaluate(model, device, criterion, data_loader):
     """
     """
     model.eval()
     accuracy = 0.0
+    loss = 0.0
     with torch.no_grad():
          for sample in data_loader:
              input, target = sample[0].to(device), sample[1].to(device)
@@ -149,7 +151,8 @@ def evaluate(model, device, data_loader):
              pred = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
              tp = float((pred == target).sum())
              accuracy += tp / len(target.view(-1))
-    return accuracy / len(data_loader)
+             loss += criterion(o, target)
+    return accuracy / len(data_loader), loss / len(data_loader)
 
 def run_crf(img, output):
     d = dcrf.DenseCRF2D(img.size[0], img.size[1], output.size(0))
