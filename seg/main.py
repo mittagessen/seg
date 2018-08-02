@@ -114,7 +114,6 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
                 input, target = sample[0].to(device), sample[1].to(device)
-                print('{} {}'.format(input.shape, target.shape))
                 opti.zero_grad()
                 o = model(input)
                 loss = criterion(o, target)
