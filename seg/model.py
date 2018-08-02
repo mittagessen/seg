@@ -58,21 +58,34 @@ class ConvReNet(nn.Module):
     def __init__(self, cls, refine_encoder=False):
         super(ConvReNet, self).__init__()
         self.cls = cls
-        self.resnet = models.resnet50(pretrained=True)
-        if not refine_encoder:
-            for param in self.resnet.parameters():
-                param.requires_grad = False
-        self.label = nn.Sequential(ReNet(256, 32), nn.Conv2d(64, cls, 1))
-        self.upsample = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        r = 3
+        self.label = nn.Sequential(nn.Conv2d(3, 16, r, padding=r//2),
+                                   nn.BatchNorm2d(16),
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(2, 2),
+                                   nn.Conv2d(16, 32, r, padding=r//2),
+                                   nn.BatchNorm2d(32),
+                                   nn.ReLU(),
+                                   nn.MaxPool2d(2, 2),
+                                   nn.Conv2d(32, 64, r, padding=r//2),
+                                   nn.BatchNorm2d(64),
+                                   nn.ReLU(),
+                                   ReNet(64, 32),
+                                   nn.Conv2d(64, 32, 1),
+                                   nn.BatchNorm2d(32),
+                                   nn.ReLU(),
+                                   ReNet(32, 32),
+                                   nn.Conv2d(64, 1, 1))
+        #self.upsample = nn.ConvTranspose2d(cls, cls, 3, padding=5, stride=4)
+        self.upsample = nn.ConvTranspose2d(cls, cls, 6, padding=1, stride=4)
+        self.nonlin = nn.Sigmoid()
         self.init_weights()
 
     def forward(self, inputs):
         siz = inputs.size()
-        features = self.resnet.conv1(inputs)
-        features = self.dropout2dself.resnet.layer1(features)
-        o = self.label(features)
+        o = self.label(inputs)
         o = self.upsample(o, output_size=(siz[0], self.cls, siz[2], siz[3]))
-        return o
+        return self.nonlin(o)
 
     def init_weights(self):
         def _wi(m):

@@ -72,21 +72,18 @@ def cli():
 @click.option('-r', '--refine-encoder/--freeze-encoder', default=False, help='Freeze pretrained encoder weights')
 @click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
-@click.option('--augment/--no-augment', show_default=True, default=True, help='Enables/disables data augmentation')
-@click.option('--weigh-loss/--no-weigh-loss', show_default=True, default=True, help='Weighs cross entropy loss for class frequency')
 @click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
-@click.option('--crf/--no-crf', show_default=True, default=True, help='enables CRF postprocessing')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
 def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
-          min_delta, augment, weigh_loss, optimizer, crf, threads,
+          min_delta, optimizer, threads,
           ground_truth):
 
     print('model output name: {}'.format(name))
 
     torch.set_num_threads(threads)
 
-    train_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(ground_truth), recursive=True), augment=augment)
+    train_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(ground_truth), recursive=True), augment=False)
     train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
     val_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(validation), recursive=True), augment=False)
     val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
