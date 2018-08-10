@@ -16,7 +16,7 @@ class BaselineSet(data.Dataset):
         self.augment = augment
 
     def __getitem__(self, idx):
-        input = Image.open(self.imgs[idx]).convert('RGB')
+        input = Image.open(self.imgs[idx]).convert('1')
         target = Image.open(self.targets[idx])
         return self.transform(input, target)
 
@@ -40,7 +40,7 @@ class BaselineSet(data.Dataset):
             target = tf.rotate(target, angle, resample=Image.NEAREST)
         image = tf.to_tensor(image)
 
-        return norm(image), tf.to_tensor(target), tf.to_tensor(res)
+        return image, tf.to_tensor(target), tf.to_tensor(res)
 
     def __len__(self):
         return len(self.imgs)
