@@ -59,7 +59,7 @@ class ConvReNet(nn.Module):
         super(ConvReNet, self).__init__()
         self.cls = cls
         r = 3
-        self.label = nn.Sequential(nn.Conv2d(3, 16, r, padding=r//2),
+        self.label = nn.Sequential(nn.Conv2d(1, 16, r, padding=r//2),
                                    nn.BatchNorm2d(16),
                                    nn.ReLU(),
                                    nn.MaxPool2d(2, 2),

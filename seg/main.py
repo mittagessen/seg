@@ -113,7 +113,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
-                input, target = sample[0].to(device), sample[1].to(device)
+                input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
                 opti.zero_grad()
                 o = model(input)
                 loss = criterion(o, target)
@@ -169,7 +169,7 @@ def run_crf(img, output):
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
 def pred(model, device, images):
-    m = ResSkipNet(1)
+    m = ConvReNet(1)
     m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
     device = torch.device(device)
     m.to(device)
@@ -184,7 +184,7 @@ def pred(model, device, images):
             norm_im = transform(im)
             print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
-            cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
+            cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
             o = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
             print('result extraction')
