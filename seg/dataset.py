@@ -6,7 +6,7 @@ from torchvision import transforms
 import torchvision.transforms.functional as tf
 import os
 from PIL import Image
-
+from scipy.ndimage import maximum_filter
 
 class BaselineSet(data.Dataset):
     def __init__(self, imgs, augment=True):
@@ -16,7 +16,7 @@ class BaselineSet(data.Dataset):
         self.augment = augment
 
     def __getitem__(self, idx):
-        input = Image.open(self.imgs[idx]).convert('1')
+        input = Image.open(self.imgs[idx]).convert('RGB')
         target = Image.open(self.targets[idx])
         return self.transform(input, target)
 
@@ -26,21 +26,11 @@ class BaselineSet(data.Dataset):
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
         res = resize(image)
-        image = res
+        image = norm(res)
         #image = jitter(res)
         target = resize(target)
-
-        if self.augment:
-            if np.random.random() > 0.5:
-                image = tf.hflip(image)
-                target = tf.hflip(target)
-
-            angle = np.random.uniform(-10, 10)
-            image = tf.rotate(image, angle, resample=Image.BICUBIC)
-            target = tf.rotate(target, angle, resample=Image.NEAREST)
-        image = tf.to_tensor(image)
-
-        return image, tf.to_tensor(target), tf.to_tensor(res)
+        mask = np.expand_dims(np.maximum(maximum_filter(target, (30, 150)), 0.0), 0)
+        return tf.to_tensor(image), tf.to_tensor(target), torch.FloatTensor(mask)
 
     def __len__(self):
         return len(self.imgs)

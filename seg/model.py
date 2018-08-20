@@ -3,6 +3,7 @@ import torch
 from torchvision import models
 from torchvision import transforms
 import torch.nn.functional as F
+from torch import autograd
 
 from torch import nn
 
@@ -11,6 +12,17 @@ from PIL import Image
 # NCHW
 t = transforms.Compose([transforms.Resize(1200), transforms.Lambda(lambda x: x.convert('RGB')), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
+class WeightedGrad(autograd.Function):
+
+    def forward(self, input, weights):
+        self.weights = weights
+        return input
+
+    def backward(self, grad_output):
+        return grad_output * self.weights, None
+
+def weighted_grad(x, y):
+    return WeightedGrad()(x, y)
 
 class ReNet(nn.Module):
     """
@@ -59,33 +71,35 @@ class ConvReNet(nn.Module):
         super(ConvReNet, self).__init__()
         self.cls = cls
         r = 3
-        self.label = nn.Sequential(nn.Conv2d(1, 16, r, padding=r//2),
-                                   nn.BatchNorm2d(16),
+        self.label = nn.Sequential(nn.Conv2d(1, 8, r, padding=r//2),
                                    nn.ReLU(),
                                    nn.MaxPool2d(2, 2),
-                                   nn.Conv2d(16, 32, r, padding=r//2),
-                                   nn.BatchNorm2d(32),
-                                   nn.ReLU(),
-                                   nn.MaxPool2d(2, 2),
-                                   nn.Conv2d(32, 64, r, padding=r//2),
-                                   nn.BatchNorm2d(64),
-                                   nn.ReLU(),
-                                   ReNet(64, 32),
-                                   nn.Conv2d(64, 32, 1),
-                                   nn.BatchNorm2d(32),
-                                   nn.ReLU(),
-                                   ReNet(32, 32),
-                                   nn.Conv2d(64, 1, 1))
-        #self.upsample = nn.ConvTranspose2d(cls, cls, 3, padding=5, stride=4)
-        self.upsample = nn.ConvTranspose2d(cls, cls, 6, padding=1, stride=4)
-        self.nonlin = nn.Sigmoid()
+                                   nn.Conv2d(8, 1, r, padding=r//2),
+                                   nn.Sigmoid())
+        #self.label = nn.Sequential(nn.Conv2d(1, 16, r, padding=r//2),
+        #                           nn.BatchNorm2d(16),
+        #                           nn.ReLU(),
+        #                           nn.MaxPool2d(2, 2),
+        #                           nn.Conv2d(16, 32, r, padding=r//2),
+        #                           nn.BatchNorm2d(32),
+        #                           nn.ReLU(),
+        #                           nn.MaxPool2d(2, 2),
+        #                           nn.Conv2d(32, 64, r, padding=r//2),
+        #                           nn.BatchNorm2d(64),
+        #                           nn.ReLU(),
+        #                           ReNet(64, 32),
+        #                           nn.Conv2d(64, 32, 1),
+        #                           nn.BatchNorm2d(32),
+        #                           nn.ReLU(),
+        #                           ReNet(32, 32),
+        #                           nn.Conv2d(64, 1, 1),
+        #                           nn.Sigmoid())
         self.init_weights()
 
     def forward(self, inputs):
         siz = inputs.size()
         o = self.label(inputs)
-        o = self.upsample(o, output_size=(siz[0], self.cls, siz[2], siz[3]))
-        return self.nonlin(o)
+        return F.interpolate(o, size=(siz[2], siz[3]))
 
     def init_weights(self):
         def _wi(m):
@@ -104,43 +118,42 @@ class ConvReNet(nn.Module):
                 for p in m.parameters():
                     torch.nn.init.orthogonal_(p.data)
             elif isinstance(m, torch.nn.Conv2d):
-                for p in m.parameters():
-                    torch.nn.init.uniform_(p.data, -0.1, 0.1)
+                torch.nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                torch.nn.init.constant_(m.bias, 0)
         self.label.apply(_wi)
-        self.upsample.apply(_wi)
 
 class ResSkipNet(nn.Module):
     """
-    ResNet-152 encoder + SkipNet decoder
+    ResNet-50 encoder + SkipNet decoder
     """
     def __init__(self, cls=4, refine_encoder=False):
         super(ResSkipNet, self).__init__()
         self.cls = cls
         # squeezenet feature extractor
-        self.resnet = models.resnet101(pretrained=True)
+        self.resnet = models.resnet50(pretrained=True)
         if not refine_encoder:
             for param in self.resnet.parameters():
                 param.requires_grad = False
         # convolutions to label space
-        self.heat_1 = nn.Conv2d(64, cls, 1)
-        self.heat_2 = nn.Conv2d(64, cls, 1)
-        self.heat_3 = nn.Conv2d(512, cls, 1)
-        self.heat_4 = nn.Conv2d(1024, cls, 1)
-        self.heat_5 = nn.Conv2d(2048, cls, 1)
+        self.heat_1 = nn.Conv2d(64, 32, 1)
+        self.heat_2 = nn.Conv2d(64, 32, 1)
+        self.heat_3 = nn.Conv2d(512, 32, 1)
+        self.heat_4 = nn.Conv2d(1024, 32, 1)
+        self.heat_5 = nn.Conv2d(2048, 32, 1)
 
         self.dropout = torch.nn.Dropout2d(0.1)
 
         # upsampling of label space heat maps
         # upsamples map_5 to size of map_4
-        self.upsample_5 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        self.upsample_5 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
         # upsamples map_4 to size of map_3
-        self.upsample_4 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        self.upsample_4 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
         # upsamples map_3 to size of map_2
-        self.upsample_3 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        self.upsample_3 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
         # upsamples map_2 to size of map_1
-        self.upsample_2 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        self.upsample_2 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
         # upsamples map_1 to original output size
-        self.upsample_1 = nn.ConvTranspose2d(cls, cls, 3, padding=1, stride=2)
+        self.upsample_1 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
         self.nonlin = nn.Sigmoid()
         self.init_weights()
 
@@ -189,8 +202,8 @@ class ResSkipNet(nn.Module):
                 for p in m.parameters():
                     torch.nn.init.orthogonal_(p.data)
             elif isinstance(m, torch.nn.Conv2d):
-                for p in m.parameters():
-                    torch.nn.init.uniform_(p.data, -0.1, 0.1)
+                torch.nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                torch.nn.init.constant_(m.bias, 0)
         self.heat_1.apply(_wi)
         self.heat_2.apply(_wi)
         self.heat_3.apply(_wi)

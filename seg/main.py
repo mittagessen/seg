@@ -12,9 +12,10 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from seg.model import ConvReNet, SqueezeSkipNet, ResSkipNet
+from seg.model import ConvReNet, SqueezeSkipNet, ResSkipNet, weighted_grad
 from seg.dataset import BaselineSet
 
+from scipy.misc import imsave
 from torchvision import transforms
 from PIL import Image
 import click
@@ -44,8 +45,8 @@ class EarlyStopping(object):
         return self
 
     def __next__(self):
-        if self.wait >= self.lag:
-             raise StopIteration
+        #if self.wait >= self.lag:
+        #     raise StopIteration
         return self.it
 
     def update(self, val_loss):
@@ -65,7 +66,7 @@ def cli():
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
 @click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResSkipNet']))
-@click.option('-l', '--lrate', default=0.03, help='initial learning rate')
+@click.option('-l', '--lrate', default=4, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
@@ -113,21 +114,23 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
-                input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
+                input, target, mask = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True), sample[2].to(device, non_blocking=True)
                 opti.zero_grad()
                 o = model(input)
+                o = weighted_grad(o, mask)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()
                 opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
-        model.train()
-        if optimizer == 'SGD':
-            scheduler.step(val_loss)
+        #val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
+        #model.train()
+        #if optimizer == 'SGD':
+        #    scheduler.step(val_loss)
         st_it.update(val_loss)
-        print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
+        imsave('{:06d}.png'.format(epoch), o.detach().squeeze().numpy())
+        #print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
 
 def hysteresis_thresh(im, low, high):
     lower = im > low
