@@ -174,15 +174,10 @@ class ResUNet(nn.Module):
         map_4 = self.resnet.layer3(map_3)
 
         # upsample concatenated maps
-        print('up the')
         map_4 = self.dropout(self.upsample_4(map_4, output_size=map_3.size()))
-        print('ra\nup the')
         map_3 = self.dropout(self.upsample_3(torch.cat([map_3, map_4], 1), output_size=map_2.size()))
-        print('ra\nup the')
         map_2 = self.dropout(self.upsample_2(torch.cat([map_2, map_3], 1), output_size=map_1.size()))
-        print('ra\nup the')
         map_1 = self.dropout(self.upsample_1(torch.cat([map_1, map_2], 1), output_size=map_1.size()[:2] + siz[2:]))
-        print('ra\nup the')
         return self.nonlin(self.squash(map_1))
 
     def init_weights(self):
