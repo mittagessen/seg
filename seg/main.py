@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from seg.model import ConvReNet, SqueezeSkipNet, ResSkipNet, weighted_grad
+from seg.model import ConvReNet, SqueezeSkipNet, ResUNet, weighted_grad
 from seg.dataset import BaselineSet
 
 from scipy.misc import imsave
@@ -65,7 +65,7 @@ def cli():
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
-@click.option('-t', '--arch', default='ResSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResSkipNet']))
+@click.option('-t', '--arch', default='ResUNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResUNet']))
 @click.option('-l', '--lrate', default=4, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
@@ -96,8 +96,8 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         model = SqueezeSkipNet(1, refine_encoder).to(device)
     elif arch == 'ConvReNet':
         model = ConvReNet(1, refine_encoder).to(device)
-    elif arch == 'ResSkipNet':
-        model = ResSkipNet(1, refine_encoder).to(device)
+    elif arch == 'ResUNet':
+        model = ResUNet(1, refine_encoder).to(device)
     else:
         raise Exception('invalid model type selected')
 
