@@ -138,15 +138,15 @@ class UnetDecoder(nn.Module):
         return F.relu(self.deconv(x, output_size=output_size))
 
 
-class ResUNet(nn.Module):
+class ResSkipNet(nn.Module):
     """
-    ResNet-18 encoder + U-Net decoder
+    ResNet-34 encoder + U-Net decoder
     """
     def __init__(self, cls=1, refine_encoder=False):
-        super(ResUNet, self).__init__()
+        super(ResSkipNet, self).__init__()
         self.cls = cls
         # squeezenet feature extractor
-        self.resnet = models.resnet18(pretrained=True)
+        self.resnet = models.resnet34(pretrained=True)
         if not refine_encoder:
             for param in self.resnet.parameters():
                 param.requires_grad = False
