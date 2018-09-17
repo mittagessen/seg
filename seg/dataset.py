@@ -22,7 +22,7 @@ class BaselineSet(data.Dataset):
         return self.transform(input, target)
 
     def transform(self, image, target):
-        resize = transforms.Resize(1200)
+        resize = transforms.Resize(900)
         jitter = transforms.ColorJitter()
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
