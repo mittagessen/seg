@@ -140,22 +140,22 @@ class UnetDecoder(nn.Module):
 
 class ResSkipNet(nn.Module):
     """
-    ResNet-50 encoder + U-Net decoder
+    ResNet-34 encoder + U-Net decoder
     """
     def __init__(self, cls=1, refine_encoder=False):
         super(ResSkipNet, self).__init__()
         self.cls = cls
         # squeezenet feature extractor
-        self.resnet = models.resnet50(pretrained=True)
+        self.resnet = models.resnet34(pretrained=True)
         if not refine_encoder:
             for param in self.resnet.parameters():
                 param.requires_grad = False
 
         self.dropout = nn.Dropout(0.1)
         # operating on map_4
-        self.upsample_4 = UnetDecoder(1024, 1024, 512)
+        self.upsample_4 = UnetDecoder(256, 256, 128)
         # operating on cat(map_3, upsample_5(map_4))
-        self.upsample_3 = UnetDecoder(1024, 512, 64)
+        self.upsample_3 = UnetDecoder(256, 128, 64)
         self.upsample_2 = UnetDecoder(128, 64, 64)
         self.upsample_1 = UnetDecoder(128, 64, 64)
         self.squash = nn.Conv2d(64, cls, kernel_size=1)
@@ -165,22 +165,13 @@ class ResSkipNet(nn.Module):
 
     def forward(self, inputs):
         siz = inputs.size()
-        # reduction factor 2
-        print('map_1')
-        map_1 = self.resnet.conv1(inputs)
-        x = self.resnet.bn1(map_1)
-        x = self.resnet.relu(x)
-        # reduction factor 4
-        map_2 = self.resnet.maxpool(x)
-        print('map_2')
-        x = self.resnet.layer1(map_2)
-        # reduction factor 8
-        map_3 = self.resnet.layer2(x)
-        print('map_3')
-
-        # reduction factor 16
+        x = self.resnet.conv1(inputs)
+        x = self.resnet.bn1(x)
+        map_1 = self.resnet.relu(x)
+        x = self.resnet.maxpool(x)
+        map_2 = self.resnet.layer1(x)
+        map_3 = self.resnet.layer2(map_2)
         map_4 = self.resnet.layer3(map_3)
-        print('map_4')
 
         # upsample concatenated maps
         print('up the')
