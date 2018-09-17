@@ -122,11 +122,27 @@ class ConvReNet(nn.Module):
                 torch.nn.init.constant_(m.bias, 0)
         self.label.apply(_wi)
 
+
+class UnetDecoder(nn.Module):
+    """
+    U-Net decoder block with a convolution before upsampling.
+    """
+    def __init__(self, in_channels, inter_channels, out_channels):
+        super().__init__()
+
+        self.conv = nn.Conv2d(in_channels, inter_channels, kernel_size=3, padding=1)
+        self.deconv = nn.ConvTranspose2d(inter_channels, out_channels, 3, padding=1, stride=2)
+
+    def forward(self, x, output_size):
+        x = F.relu(self.conv(x))
+        return F.relu(self.deconv(x, output_size=output_size))
+
+
 class ResSkipNet(nn.Module):
     """
-    ResNet-50 encoder + SkipNet decoder
+    ResNet-50 encoder + U-Net decoder
     """
-    def __init__(self, cls=4, refine_encoder=False):
+    def __init__(self, cls=1, refine_encoder=False):
         super(ResSkipNet, self).__init__()
         self.cls = cls
         # squeezenet feature extractor
@@ -134,56 +150,49 @@ class ResSkipNet(nn.Module):
         if not refine_encoder:
             for param in self.resnet.parameters():
                 param.requires_grad = False
-        # convolutions to label space
-        self.heat_1 = nn.Conv2d(64, 32, 1)
-        self.heat_2 = nn.Conv2d(64, 32, 1)
-        self.heat_3 = nn.Conv2d(512, 32, 1)
-        self.heat_4 = nn.Conv2d(1024, 32, 1)
-        self.heat_5 = nn.Conv2d(2048, 32, 1)
 
-        self.dropout = torch.nn.Dropout2d(0.1)
+        self.dropout = nn.Dropout(0.1)
+        # operating on map_4
+        self.upsample_4 = UnetDecoder(1024, 1024, 512)
+        # operating on cat(map_3, upsample_5(map_4))
+        self.upsample_3 = UnetDecoder(1024, 512, 64)
+        self.upsample_2 = UnetDecoder(128, 64, 64)
+        self.upsample_1 = UnetDecoder(128, 64, 64)
+        self.squash = nn.Conv2d(64, cls, kernel_size=1)
 
-        # upsampling of label space heat maps
-        # upsamples map_5 to size of map_4
-        self.upsample_5 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
-        # upsamples map_4 to size of map_3
-        self.upsample_4 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
-        # upsamples map_3 to size of map_2
-        self.upsample_3 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
-        # upsamples map_2 to size of map_1
-        self.upsample_2 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
-        # upsamples map_1 to original output size
-        self.upsample_1 = nn.ConvTranspose2d(32, cls, 3, padding=1, stride=2)
         self.nonlin = nn.Sigmoid()
         self.init_weights()
 
     def forward(self, inputs):
         siz = inputs.size()
         # reduction factor 2
+        print('map_1')
         map_1 = self.resnet.conv1(inputs)
         x = self.resnet.bn1(map_1)
         x = self.resnet.relu(x)
         # reduction factor 4
         map_2 = self.resnet.maxpool(x)
+        print('map_2')
         x = self.resnet.layer1(map_2)
         # reduction factor 8
         map_3 = self.resnet.layer2(x)
+        print('map_3')
+
         # reduction factor 16
         map_4 = self.resnet.layer3(map_3)
-        map_5 = self.resnet.layer4(map_4)
+        print('map_4')
 
-        map_1 = F.relu(self.dropout(self.heat_1(self.dropout(map_1))))
-        map_2 = F.relu(self.dropout(self.heat_2(self.dropout(map_2))))
-        map_3 = F.relu(self.dropout(self.heat_3(self.dropout(map_3))))
-        map_4 = F.relu(self.dropout(self.heat_4(self.dropout(map_4))))
-        map_5 = F.relu(self.dropout(self.heat_5(self.dropout(map_5))))
-
-        # upsample using heat maps
-        map_4 = map_4 + self.dropout(self.upsample_5(map_5, output_size=map_4.shape))
-        map_3 = map_3 + self.dropout(self.upsample_4(map_4, output_size=map_3.shape))
-        map_2 = map_2 + self.dropout(self.upsample_3(map_3, output_size=map_2.shape))
-        map_1 = map_1 + self.dropout(self.upsample_2(map_2, output_size=map_1.shape))
-        return self.nonlin(self.upsample_1(map_1, output_size=(siz[0], self.cls, siz[2], siz[3])))
+        # upsample concatenated maps
+        print('up the')
+        map_4 = self.dropout(self.upsample_4(map_4, output_size=map_3.size()))
+        print('ra\nup the')
+        map_3 = self.dropout(self.upsample_3(torch.cat([map_3, map_4], 1), output_size=map_2.size()))
+        print('ra\nup the')
+        map_2 = self.dropout(self.upsample_2(torch.cat([map_2, map_3], 1), output_size=map_1.size()))
+        print('ra\nup the')
+        map_1 = self.dropout(self.upsample_1(torch.cat([map_1, map_2], 1), output_size=map_1.size()[:2] + siz[2:]))
+        print('ra\nup the')
+        return self.nonlin(self.squash(map_1))
 
     def init_weights(self):
         def _wi(m):
@@ -204,17 +213,12 @@ class ResSkipNet(nn.Module):
             elif isinstance(m, torch.nn.Conv2d):
                 torch.nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
                 torch.nn.init.constant_(m.bias, 0)
-        self.heat_1.apply(_wi)
-        self.heat_2.apply(_wi)
-        self.heat_3.apply(_wi)
-        self.heat_4.apply(_wi)
-        self.heat_5.apply(_wi)
 
-        self.upsample_5.apply(_wi)
         self.upsample_4.apply(_wi)
         self.upsample_3.apply(_wi)
         self.upsample_2.apply(_wi)
         self.upsample_1.apply(_wi)
+        self.squash.apply(_wi)
 
 class SqueezeSkipNet(nn.Module):
     """

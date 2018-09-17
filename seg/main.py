@@ -65,7 +65,7 @@ def cli():
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
-@click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResSkipNet']))
+@click.option('-t', '--arch', default='ResSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResSkipNet']))
 @click.option('-l', '--lrate', default=4, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
@@ -114,13 +114,16 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
-                input, target, mask = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True), sample[2].to(device, non_blocking=True)
+                input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
                 opti.zero_grad()
+                print('foo')
                 o = model(input)
-                o = weighted_grad(o, mask)
+                print('baz')
+                #o = weighted_grad(o, mask)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()
+                print('bar')
                 opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
