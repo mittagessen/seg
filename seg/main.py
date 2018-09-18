@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from seg.model import ConvReNet, SqueezeSkipNet, ResUNet, weighted_grad
+from seg.model import ConvReNet, ResSkipNet, ResUNet
 from seg.dataset import BaselineSet
 
 from scipy.misc import imsave
@@ -65,8 +65,8 @@ def cli():
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
-@click.option('-t', '--arch', default='ResUNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResUNet']))
-@click.option('-l', '--lrate', default=4, help='initial learning rate')
+@click.option('-t', '--arch', default='ResUNet', type=click.Choice(['ResSkipNet', 'ConvReNet', 'ResUNet']))
+@click.option('-l', '--lrate', default=0.3, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
@@ -92,8 +92,8 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
     device = torch.device(device)
 
     print('loading network')
-    if arch == 'SqueezeSkipNet':
-        model = SqueezeSkipNet(1, refine_encoder).to(device)
+    if arch == 'ResSkipNet':
+        model = ResSkipNet(1, refine_encoder).to(device)
     elif arch == 'ConvReNet':
         model = ConvReNet(1, refine_encoder).to(device)
     elif arch == 'ResUNet':
@@ -101,7 +101,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
     else:
         raise Exception('invalid model type selected')
 
-    criterion = nn.MSELoss()
+    criterion = nn.BCELoss()
 
     if optimizer == 'SGD':
         opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
@@ -117,7 +117,6 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
                 input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
                 opti.zero_grad()
                 o = model(input)
-                #o = weighted_grad(o, mask)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()
@@ -128,9 +127,10 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
         #model.train()
         #if optimizer == 'SGD':
         #    scheduler.step(val_loss)
-        st_it.update(val_loss)
+        #st_it.update(val_loss)
         imsave('{:06d}.png'.format(epoch), o.detach().cpu().squeeze().numpy())
         #print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
+
 
 def hysteresis_thresh(im, low, high):
     lower = im > low
@@ -151,7 +151,7 @@ def evaluate(model, device, criterion, data_loader):
              input, target = sample[0].to(device), sample[1].to(device)
              o = model(input)
              pred = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
-             tp = float((pred == target).sum())
+             tp = float((pred == target.detach().squeeze().cpu().numpy()).sum())
              accuracy += tp / len(target.view(-1))
              loss += criterion(o, target)
     return accuracy / len(data_loader), loss / len(data_loader)

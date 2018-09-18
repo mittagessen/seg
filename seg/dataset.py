@@ -30,8 +30,8 @@ class BaselineSet(data.Dataset):
         image = norm(res)
         #image = jitter(res)
         target = resize(target)
-        #mask = np.expand_dims(np.maximum(maximum_filter(target, (30, 150)), 0.0), 0)
-        return image, tf.to_tensor(target)
+        mask = np.expand_dims(np.maximum(maximum_filter(target, (30, 150)), 0.0), 0)
+        return image, tf.to_tensor(target), tf.to_tensor(mask)
 
     def __len__(self):
         return len(self.imgs)
