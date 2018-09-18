@@ -123,13 +123,13 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
                 opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        #val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
-        #model.train()
-        #if optimizer == 'SGD':
-        #    scheduler.step(val_loss)
+        val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
+        model.train()
+        if optimizer == 'SGD':
+            scheduler.step(val_loss)
         #st_it.update(val_loss)
         imsave('{:06d}.png'.format(epoch), o.detach().cpu().squeeze().numpy())
-        #print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
+        print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
 
 
 def hysteresis_thresh(im, low, high):
