@@ -9,17 +9,19 @@ from PIL import Image
 from scipy.ndimage import maximum_filter, find_objects
 from skimage.morphology import convex_hull_image
 
+
 class BaselineSet(data.Dataset):
     def __init__(self, imgs, augment=True):
         super(BaselineSet, self).__init__()
-        self.imgs = imgs
-        self.targets = [os.path.splitext(x)[0] + '.png' for x in imgs]
+        self.imgs = [x[:-10] for x in imgs]
         self.augment = augment
 
     def __getitem__(self, idx):
-        input = Image.open(self.imgs[idx]).convert('RGB')
-        target = Image.open(self.targets[idx])
-        return self.transform(input, target)
+        im = self.imgs[idx]
+        target = Image.open('{}.seeds.png'.format(im))
+        orig = Image.open('{}.plain.png'.format(im)).convert('RGB')
+
+        return self.transform(orig, target)
 
     def transform(self, image, target):
         resize = transforms.Resize(900)
@@ -29,9 +31,9 @@ class BaselineSet(data.Dataset):
         res = tf.to_tensor(resize(image))
         image = norm(res)
         #image = jitter(res)
+        target = Image.fromarray(((np.array(target) > 0) * 255).astype('uint8'))
         target = resize(target)
-        mask = np.expand_dims(np.maximum(maximum_filter(target, (30, 150)), 0.0), 0)
-        return image, tf.to_tensor(target), tf.to_tensor(mask)
+        return image, tf.to_tensor(target)
 
     def __len__(self):
         return len(self.imgs)
