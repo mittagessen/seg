@@ -12,8 +12,8 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from seg.model import ConvReNet, ResSkipNet, ResUNet
-from seg.dataset import BaselineSet
+from seg.model import ConvReNet, ResSkipNet, ResUNet, DilationNet
+from seg.dataset import BaselineSet, DilationSet
 
 from scipy.misc import imsave
 from torchvision import transforms
@@ -62,6 +62,63 @@ class EarlyStopping(object):
 @click.group()
 def cli():
     pass
+
+@cli.command()
+@click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
+@click.option('-l', '--lrate', default=0.3, help='initial learning rate')
+@click.option('-w', '--workers', default=0, help='number of workers loading training data')
+@click.option('-d', '--device', default='cpu', help='pytorch device')
+@click.option('-v', '--validation', default='val', help='validation set location')
+@click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
+@click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
+@click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
+@click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
+@click.argument('ground_truth', nargs=1)
+def train_dilation(name, lrate, workers, device, validation, lag, min_delta, optimizer, threads, ground_truth):
+
+    print('model output name: {}'.format(name))
+
+    torch.set_num_threads(threads)
+
+    train_set = DilationSet(glob.glob('{}/**/*.seeds.png'.format(ground_truth), recursive=True), augment=False)
+    train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
+    val_set = DilationSet(glob.glob('{}/**/*.seeds.png'.format(validation), recursive=True), augment=False)
+    val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
+
+    device = torch.device(device)
+
+    print('loading network')
+    model = DilationNet()
+
+    criterion = nn.BCELoss()
+
+    if optimizer == 'SGD':
+        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+    else:
+        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+    scheduler = lr_scheduler.ReduceLROnPlateau(opti, patience=5, mode='max', verbose=True)
+    st_it = EarlyStopping(train_data_loader, min_delta, lag)
+    val_loss = 1.0
+    for epoch, loader in enumerate(st_it):
+        epoch_loss = 0
+        with click.progressbar(train_data_loader, label='epoch {}'.format(epoch), show_pos=True) as bar:
+            for sample in bar:
+                input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
+                opti.zero_grad()
+                o = model(input)
+                loss = criterion(o, target)
+                epoch_loss += loss.item()
+                loss.backward()
+                opti.step()
+        torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
+        print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
+        #val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
+        #model.train()
+        #if optimizer == 'SGD':
+        #    scheduler.step(val_loss)
+        ##st_it.update(val_loss)
+        #imsave('{:06d}.png'.format(epoch), o.detach().cpu().squeeze().numpy())
+        #print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')

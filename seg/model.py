@@ -251,16 +251,15 @@ class ResSkipNet(nn.Module):
         self.upsample_2.apply(_wi)
         self.upsample_1.apply(_wi)
 
-class ExpansionNet(nn.Module):
+
+class DilationNet(nn.Module):
     """
-    Network expanding the baseline pixel labelling to the whole line (shares
-    feature extraction layers with BaselineNet).
+    Network expanding the baseline pixel labelling to the whole line.
     """
     def __init__(self):
-        super(Expansion, self).__init__()
-        self.expand = nn.Sequential(ReNet(128, 16), nn.Conv2D(32, 1, 1), nn.Sigmoid())
+        super(DilationNet, self).__init__()
+        self.expand = nn.Sequential(ReNet(4, 16), nn.Conv2d(32, 1, 1), nn.Sigmoid())
+        self.expand.apply(_wi)
 
-    def forward(self, baselines, features):
-        o = self.expand(inputs)
-        o = F.upsample(o, inputs.shape[1:], mode='bilinear')
-        return o
+    def forward(self, inputs):
+        return self.expand(inputs)
