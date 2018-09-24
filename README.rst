@@ -1,10 +1,10 @@
-Pixel labelling for layout analysis
-===================================
+2-stage neural layout analysis
+==============================
 
-This is a fine grained document pixel labelling tool for layout analysis
-purposes. It uses a FCN-style deep network with conditional random field
-postprocessing to assign each pixel of an input image to a particular class
-(background, main text, decoration, annotation). 
+This is a fully neural layout analysis tool capable of extracting arbitrarily
+shaped lines from documents. It operates in two steps, first labelling all
+baselines in the document using a FCN-style deep network and then expanding
+individual baselines with a small convolutional dilation network.
 
 Everything is highly experimental, subject to changes without notice, and will
 break frequently.
@@ -26,20 +26,29 @@ use:
 Training
 --------
 
-Training requires a directory with input images in JPG and their corresponding
-labelled ground truth in PNG format. The labels should correspond to the hisDB
-standard, i.e. 1-bit per class in the lowest 4bits of the red color channel.
+Training requires a directory with triplets of input images
+$prefix.{plain,seeds,lines}.png. `plain` are RGB inputs, `seeds` are 8bpp
+baselines annotations with each non-zero value representing a single baseline,
+and `lines` are expansions of baselines to all pixels belonging to the line in
+the same format as the seed files. A sample dataset based on the UW3 corpus can
+be found here_.
 
-There are half a dozen options that don't really improve training results,
-notably per-class loss weights, encoder refinement, and augmentation.
+Each step has to be trained separately but uses the same training data. Run:
+
+::
+
+   $ seg train --validation val train
+
+to train the baseline detector. The dilation tool can be trained with:
+
+::
+
+   $ seg train_dilation --validation val train
+
 
 Inference
 ---------
 
-Run:
+Not implemented yet.
 
-::
-        $ seg pred -m $model_file $img_1 $img_2 ... $img_n
-
-Outputs are the original file name plus a `class_n` suffix and an opaque
-overlay image per input file.
+.. _here: http://homer.dh.uni-leipzig.de/uw3.tar.xz
