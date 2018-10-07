@@ -12,16 +12,21 @@ break frequently.
 Installation
 ------------
 
-Run:
+- **Installation using Conda:**
 
-::
-        $ pip3 install .
+``conda env create -f environment.yml``
+
+
+- **Installation using pip:**
+
+``git clone --single-branch -b baseline https://github.com/mittagessen/seg.git``
+
+``pip3 install .``
 
 to install the dependencies and the command line tool. For development purposes
 use:
 
-::
-        $ pip3 install --editable .
+``pip3 install --editable .``
 
 Training
 --------
