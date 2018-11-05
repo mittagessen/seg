@@ -75,7 +75,7 @@ class DilationSet(data.Dataset):
         seeds = tf.to_tensor(np.expand_dims(seeds, 2)).float()
         # expanded target
         target = (np.array(lines)[bbox] == idx) * 255
-        target = convex_hull_image(target) * 255
+        #target = convex_hull_image(target) * 255
         target = tf.to_tensor(np.expand_dims(target, 2)).float()
         # original image
         orig = tf.to_tensor(np.array(orig)[bbox])
