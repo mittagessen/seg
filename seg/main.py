@@ -88,7 +88,7 @@ def train_dilation(name, lrate, workers, device, validation, lag, min_delta, opt
     device = torch.device(device)
 
     print('loading network')
-    model = DilationNet()
+    model = DilationNet().to(device)
     criterion = nn.BCELoss()
 
     if optimizer == 'SGD':
