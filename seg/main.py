@@ -103,9 +103,11 @@ def train_dilation(name, lrate, workers, device, batch_size, validation, lag, mi
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch), show_pos=True) as bar:
             for sample in bar:
-                input, target = sample[1].to(device, non_blocking=True), sample[2].to(device, non_blocking=True)
+                lens, input, target = sample[0].to(device, non_blocking=True),
+                                      sample[1].to(device, non_blocking=True),
+                                      sample[2].to(device, non_blocking=True)
                 opti.zero_grad()
-                o = model(input)
+                o = model(input, lens)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()

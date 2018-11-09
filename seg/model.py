@@ -252,6 +252,31 @@ class ResSkipNet(nn.Module):
         self.upsample_1.apply(_wi)
 
 
+class MaskedConv2d(nn.Conv2d):
+    """
+    Simple 2d convolution using a sequence length tensor for masking.
+    """
+    def __init__(self, *args, **kwargs):
+        super(MaskedConv2d, self).__init__(*args, **kwargs)
+
+    def forward(self, inputs, lens):
+        o = super(MaskedConv2d, self).forward(inputs)
+        mask = torch.zeros_like(o)
+        lens = torch.round(lens * o.shape[3]/inputs.shape[3])
+        for idx, x in enumerate(lens.int()):
+            mask[idx, :, :, 0:x] = torch.ones((mask.shape[1], mask.shape[2], x))
+        o = o * mask
+        return o, lens
+
+
+class MaskedSigmoid(nn.Sigmoid):
+    def __init__(self, *args, **kwargs):
+        super(MaskedSigmoid, self).__init__(*args, **kwargs)
+
+    def forward(self, inputs, lens):
+        return super(MaskedSigmoid, self).forward(inputs), lens
+
+
 class DilationNet(nn.Module):
     """
     Network expanding the baseline pixel labelling to the whole line.
@@ -259,7 +284,10 @@ class DilationNet(nn.Module):
     def __init__(self):
         super(DilationNet, self).__init__()
         #self.expand = nn.Sequential(ReNet(4, 16), nn.Conv2d(32, 1, 1), nn.Sigmoid())
-        self.expand = nn.Sequential(nn.Conv2d(4, 128, 3, padding=1), nn.Conv2d(128, 32, 3, padding=1), nn.Conv2d(32, 1, 1), nn.Sigmoid())
+        self.expand = nn.Sequential(nn.MaskedConv2d(4, 128, 3, padding=1),
+                                    nn.MaskedConv2d(128, 32, 3, padding=1),
+                                    nn.MaskedConv2d(32, 1, 1),
+                                    nn.MaskedSigmoid())
         self.expand.apply(_wi)
 
     def forward(self, inputs):
