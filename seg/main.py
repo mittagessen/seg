@@ -13,7 +13,7 @@ from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
 from seg.model import ConvReNet, ResSkipNet, ResUNet, DilationNet
-from seg.dataset import BaselineSet, DilationSet
+from seg.dataset import BaselineSet, DilationSet, dilate_collate
 
 from scipy.misc import imsave
 from torchvision import transforms
@@ -68,22 +68,23 @@ def cli():
 @click.option('-l', '--lrate', default=0.3, help='initial learning rate')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
+@click.option('-b', '--batch-size', default=8, help='batch size')
 @click.option('-v', '--validation', default='val', help='validation set location')
 @click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train_dilation(name, lrate, workers, device, validation, lag, min_delta, optimizer, threads, ground_truth):
+def train_dilation(name, lrate, workers, device, batch_size, validation, lag, min_delta, optimizer, threads, ground_truth):
 
     print('model output name: {}'.format(name))
 
     torch.set_num_threads(threads)
 
     train_set = DilationSet(glob.glob('{}/**/*.seeds.png'.format(ground_truth), recursive=True), augment=False)
-    train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
+    train_data_loader = DataLoader(dataset=train_set, num_workers=workers, collate_fn=dilate_collate, batch_size=batch_size, shuffle=True, pin_memory=True)
     val_set = DilationSet(glob.glob('{}/**/*.seeds.png'.format(validation), recursive=True), augment=False)
-    val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
+    val_data_loader = DataLoader(dataset=val_set, num_workers=workers, collate_fn=dilate_collate, batch_size=batch_size, pin_memory=True)
 
     device = torch.device(device)
 
@@ -102,7 +103,7 @@ def train_dilation(name, lrate, workers, device, validation, lag, min_delta, opt
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch), show_pos=True) as bar:
             for sample in bar:
-                input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
+                input, target = sample[1].to(device, non_blocking=True), sample[2].to(device, non_blocking=True)
                 opti.zero_grad()
                 o = model(input)
                 loss = criterion(o, target)

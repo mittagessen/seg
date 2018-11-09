@@ -8,7 +8,7 @@ import os
 from PIL import Image
 from scipy.ndimage import maximum_filter, find_objects
 from skimage.morphology import convex_hull_image
-
+from torch.nn.utils.rnn import pad_sequence
 
 class BaselineSet(data.Dataset):
     def __init__(self, imgs, augment=True):
@@ -38,6 +38,16 @@ class BaselineSet(data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
+
+def dilate_collate(batch):
+    """
+    Pads all images in batch to the largest image size and assembles a tensor.
+    """
+    batch = sorted(batch, key=lambda x: x[0].shape[2], reverse=True)
+    seq_len = torch.IntTensor([l[0].shape[2] for l in batch])
+    inp = pad_sequence([x[0].transpose(0, 2) for x in batch]).permute(1, 3, 2, 0).contiguous()
+    target = pad_sequence([x[1].transpose(0, 2) for x in batch]).permute(1, 3, 2, 0).contiguous()
+    return seq_len, inp, target
 
 class DilationSet(data.Dataset):
     def __init__(self, imgs, augment=True, dilation=10):
@@ -69,7 +79,7 @@ class DilationSet(data.Dataset):
         seeds = np.array(seeds)
         idx = np.random.randint(seeds.max()+1)
         bbox = find_objects(seeds == idx)[0]
-        bbox = (slice(bbox[0].start - self.dilation, bbox[0].stop + self.dilation, bbox[0].step),
+        bbox = (slice(bbox[0].start - self.dilation, bbox[0].start + self.dilation, bbox[0].step),
                 slice(bbox[1].start - self.dilation, bbox[1].stop + self.dilation, bbox[1].step))
         seeds = (seeds[bbox] == idx) * 255
         seeds = tf.to_tensor(np.expand_dims(seeds, 2)).float()
