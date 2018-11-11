@@ -103,11 +103,16 @@ def train_dilation(name, lrate, workers, device, batch_size, validation, lag, mi
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch), show_pos=True) as bar:
             for sample in bar:
-                lens, input, target = sample[0].to(device, non_blocking=True),
-                                      sample[1].to(device, non_blocking=True),
+                lens, input, target = sample[0].to(device, non_blocking=True),\
+                                      sample[1].to(device, non_blocking=True),\
                                       sample[2].to(device, non_blocking=True)
                 opti.zero_grad()
-                o = model(input, lens)
+                o, olens = model(input, lens)
+                # flatten tensor and remove masked bits
+                mask = torch.zeros_like(o)
+                for idx, x in enumerate(olens.int()):
+                    mask[idx, :, :, 0:x] = torch.ones((mask.shape[1], mask.shape[2], x))
+                print(o[mask].shape)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()

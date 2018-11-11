@@ -284,10 +284,10 @@ class DilationNet(nn.Module):
     def __init__(self):
         super(DilationNet, self).__init__()
         #self.expand = nn.Sequential(ReNet(4, 16), nn.Conv2d(32, 1, 1), nn.Sigmoid())
-        self.expand = nn.Sequential(nn.MaskedConv2d(4, 128, 3, padding=1),
-                                    nn.MaskedConv2d(128, 32, 3, padding=1),
-                                    nn.MaskedConv2d(32, 1, 1),
-                                    nn.MaskedSigmoid())
+        self.expand = nn.Sequential(MaskedConv2d(4, 128, 3, padding=1),
+                                    MaskedConv2d(128, 32, 3, padding=1),
+                                    MaskedConv2d(32, 1, 1),
+                                    MaskedSigmoid())
         self.expand.apply(_wi)
 
     def forward(self, inputs):
