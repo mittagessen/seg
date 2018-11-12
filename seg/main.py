@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.optim import lr_scheduler
 import torch.nn.functional as F
 
-from seg.model import ConvReNet, SqueezeSkipNet, ResSkipNet
+from seg import model
 from seg.dataset import BaselineSet
 
 from torchvision import transforms
@@ -65,8 +65,9 @@ def cli():
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
-@click.option('-t', '--arch', default='SqueezeSkipNet', type=click.Choice(['SqueezeSkipNet', 'ConvReNet', 'ResSkipNet']))
+@click.option('-t', '--arch', default='ResUNet', type=click.Choice(['ResUNet', 'ResSkipNet']))
 @click.option('-l', '--lrate', default=0.03, help='initial learning rate')
+@click.option('--weight-decay', default=0.0, help='weight decay')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
@@ -79,9 +80,9 @@ def cli():
 @click.option('--crf/--no-crf', show_default=True, default=True, help='enables CRF postprocessing')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
-          min_delta, augment, weigh_loss, optimizer, crf, threads,
-          ground_truth):
+def train(name, arch, lrate, weight_decay, workers, device, validation,
+          refine_encoder, lag, min_delta, augment, weigh_loss, optimizer, crf,
+          threads, ground_truth):
 
     print('model output name: {}'.format(name))
 
@@ -95,14 +96,7 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
     device = torch.device(device)
 
     print('loading network')
-    if arch == 'SqueezeSkipNet':
-        model = SqueezeSkipNet(4, refine_encoder).to(device)
-    elif arch == 'ConvReNet':
-        model = ConvReNet(4, refine_encoder).to(device)
-    elif arch == 'ResSkipNet':
-        model = ResSkipNet(4, refine_encoder).to(device)
-    else:
-        raise Exception('invalid model type selected')
+    model = getattr(model, arch)(4, refine_encoder).to(device)
 
     weights = None
     if weigh_loss:
@@ -113,9 +107,9 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
     criterion = nn.CrossEntropyLoss(weights)
 
     if optimizer == 'SGD':
-        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
     else:
-        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
     scheduler = lr_scheduler.ReduceLROnPlateau(opti, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
