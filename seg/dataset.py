@@ -14,6 +14,7 @@ class BaselineSet(data.Dataset):
         self.imgs = imgs
         self.targets = [os.path.splitext(x)[0] + '.png' for x in imgs]
         self.augment = augment
+        self.cmap = [(1, (0, 0, 255)), (2, (255, 0, 0)), (3, (255, 255, 0))]
 
     def __getitem__(self, idx):
         input = Image.open(self.imgs[idx]).convert('RGB')
@@ -24,14 +25,13 @@ class BaselineSet(data.Dataset):
         """
         Calculates the proportion of each class in the training set.
         """
-        vals = [(3, 0b1000), (2, 0b0100), (1, 0b0010), (0, 0b0001)]
         tot = 0
         cnts = torch.zeros(4)
         for im in self.targets:
             target = Image.open(im)
-            target = np.array(target)[:,:,2]
-            for v, m in vals:
-                cnts[v] += np.count_nonzero(np.bitwise_and(target, m))
+            target = np.array(target)
+            for v, m in self.cmap:
+                cnts[v] += np.count_nonzero(np.all(target == m, axis=1))
             tot += target.size
         return 1 / (cnts / tot)
 
@@ -40,6 +40,7 @@ class BaselineSet(data.Dataset):
         jitter = transforms.ColorJitter()
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
+        image = image.convert('RGB')
         res = resize(image)
         image = res
         #image = jitter(res)
@@ -55,11 +56,10 @@ class BaselineSet(data.Dataset):
             target = tf.rotate(target, angle, resample=Image.NEAREST)
         image = tf.to_tensor(image)
 
-        target = np.array(target)[:,:,2]
-        l = np.zeros(target.shape, 'i')
-        vals = [(3, 0b1000), (2, 0b0100), (1, 0b0010)]
-        for v, m in vals:
-            l[np.bitwise_and(m, target) != 0] = v
+        target = np.array(target)
+        l = np.zeros(target.shape[:2], 'i')
+        for v, m in self.cmap:
+            l[np.all(target == m, axis=-1)] = v
         target = torch.LongTensor(l)
         return norm(image), target, tf.to_tensor(res)
 

@@ -88,15 +88,15 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
 
     torch.set_num_threads(threads)
 
-    train_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(ground_truth), recursive=True), augment=augment)
+    train_set = BaselineSet(glob.glob('{}/**/*.tif'.format(ground_truth), recursive=True), augment=augment)
     train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
-    val_set = BaselineSet(glob.glob('{}/**/*.jpg'.format(validation), recursive=True), augment=False)
+    val_set = BaselineSet(glob.glob('{}/**/*.tif'.format(validation), recursive=True), augment=False)
     val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
 
     device = torch.device(device)
 
     print('loading network')
-    model = getattr(model, arch)(4, refine_encoder).to(device)
+    net = getattr(model, arch)(4, refine_encoder).to(device)
 
     weights = None
     if weigh_loss:
@@ -107,9 +107,9 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
     criterion = nn.CrossEntropyLoss(weights)
 
     if optimizer == 'SGD':
-        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
+        opti = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lrate, weight_decay=weight_decay)
     else:
-        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
+        opti = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lrate, weight_decay=weight_decay)
     scheduler = lr_scheduler.ReduceLROnPlateau(opti, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
 
@@ -119,15 +119,15 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
             for sample in bar:
                 input, target = sample[0].to(device), sample[1].to(device)
                 opti.zero_grad()
-                o = model(input)
+                o = net(input)
                 loss = criterion(o, target)
                 epoch_loss += loss.item()
                 loss.backward()
                 opti.step()
-        torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
+        torch.save(net.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_loss, thresh_loss, crf_loss = evaluate(model, device, val_data_loader)
-        model.train()
+        val_loss, thresh_loss, crf_loss = evaluate(net, device, val_data_loader)
+        net.train()
         if optimizer == 'SGD':
             scheduler.step(val_loss)
         st_it.update(val_loss)
