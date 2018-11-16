@@ -18,7 +18,7 @@ class BaselineSet(data.Dataset):
 
     def __getitem__(self, idx):
         input = Image.open(self.imgs[idx]).convert('RGB')
-        target = Image.open(self.targets[idx])
+        target = Image.open(self.targets[idx]).convert('RGB')
         return self.transform(input, target)
 
     def get_target_weights(self):
@@ -40,7 +40,6 @@ class BaselineSet(data.Dataset):
         jitter = transforms.ColorJitter()
         norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-        image = image.convert('RGB')
         res = resize(image)
         image = res
         #image = jitter(res)
