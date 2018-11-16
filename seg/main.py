@@ -88,7 +88,6 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
 
     torch.set_num_threads(threads)
 
-    train_set = BaselineSet(glob.glob('{}/**/*.tif'.format(ground_truth), recursive=True), augment=augment)
     train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
     val_set = BaselineSet(glob.glob('{}/**/*.tif'.format(validation), recursive=True), augment=False)
     val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
@@ -96,14 +95,14 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
     device = torch.device(device)
 
     print('loading network')
-    net = getattr(model, arch)(4, refine_encoder).to(device)
+    net = getattr(model, arch)(4, refine_encoder).to(device, non_blocking=True)
 
     weights = None
     if weigh_loss:
         print('calculating class proportions')
         weights = train_set.get_target_weights()
         print(weights)
-        weights = weights.to(device)
+        weights = weights.to(device, non_blocking=True)
     criterion = nn.CrossEntropyLoss(weights)
 
     if optimizer == 'SGD':
@@ -117,7 +116,7 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
         epoch_loss = 0
         with click.progressbar(train_data_loader, label='epoch {}'.format(epoch)) as bar:
             for sample in bar:
-                input, target = sample[0].to(device), sample[1].to(device)
+                input, target = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True)
                 opti.zero_grad()
                 o = net(input)
                 loss = criterion(o, target)
@@ -144,7 +143,7 @@ def evaluate(model, device, data_loader, threshold=0.5):
    caccuracy = 0.0
    with torch.no_grad():
         for sample in data_loader:
-            input, target, res = sample[0].to(device), sample[1].to(device), tf.to_pil_image(sample[2].squeeze())
+            input, target, res = sample[0].to(device, non_blocking=True), sample[1].to(device, non_blocking=True), tf.to_pil_image(sample[2].squeeze())
             o = model(input)
             # argmax accuracy
             pred = torch.argmax(o, 1).squeeze()
@@ -180,7 +179,7 @@ def pred(model, device, images):
     m = ConvReNet(4)
     m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
     device = torch.device(device)
-    m.to(device)
+    m.to(device, non_blocking=True)
 
     resize = transforms.Resize(1200)
     transform = transforms.Compose([transforms.Resize(1200), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
