@@ -64,6 +64,7 @@ def cli():
     pass
 
 @cli.command()
+@click.option('-i', '--load', type=click.Path(exists=True, readable=True), help='pretrained weights to load')
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
 @click.option('-t', '--arch', default='ResUNet', type=click.Choice(['ResUNet', 'ResSkipNet']))
 @click.option('-l', '--lrate', default=0.03, help='initial learning rate')
@@ -71,7 +72,8 @@ def cli():
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
-@click.option('-r', '--refine-encoder/--freeze-encoder', default=False, help='Freeze pretrained encoder weights')
+@click.option('--refine-projection/--clear-projection', default=false, help='clear pretrained last layer')
+@click.option('-r', '--refine-encoder/--freeze-encoder', default=false, help='freeze pretrained encoder weights')
 @click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--augment/--no-augment', show_default=True, default=True, help='Enables/disables data augmentation')
@@ -80,8 +82,8 @@ def cli():
 @click.option('--crf/--no-crf', show_default=True, default=True, help='enables CRF postprocessing')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, weight_decay, workers, device, validation,
-          refine_encoder, lag, min_delta, augment, weigh_loss, optimizer, crf,
+def train(load, name, arch, lrate, weight_decay, workers, device, validation,
+          refine_projection, refine_encoder, lag, min_delta, augment, weigh_loss, optimizer, crf,
           threads, ground_truth):
 
     print('model output name: {}'.format(name))
@@ -97,6 +99,12 @@ def train(name, arch, lrate, weight_decay, workers, device, validation,
 
     print('loading network')
     net = getattr(model, arch)(4, refine_encoder).to(device, non_blocking=True)
+    if load:
+        print('loading weights')
+        net.load_state_dict(torch.load(load, map_location='cpu'))
+        if not refine_projection:
+            print('reinitialiizing last layer')
+            model._wi(net.squash)
 
     weights = None
     if weigh_loss:
