@@ -261,6 +261,7 @@ class MaskedConv2d(nn.Conv2d):
 
     def forward(self, inputs, lens):
         o = super(MaskedConv2d, self).forward(inputs)
+        o = F.relu(o)
         mask = torch.zeros_like(o)
         lens = torch.round(lens * o.shape[3]/inputs.shape[3])
         for idx, x in enumerate(lens.int()):
@@ -285,7 +286,9 @@ class DilationNet(nn.Module):
         super(DilationNet, self).__init__()
         #self.expand = nn.Sequential(ReNet(4, 16), nn.Conv2d(32, 1, 1), nn.Sigmoid())
         self.expand = nn.Sequential(MaskedConv2d(4, 128, 3, padding=1),
+                                    nn.Dropout(0.1),
                                     MaskedConv2d(128, 32, 3, padding=1),
+                                    nn.Dropout(0.1),
                                     MaskedConv2d(32, 1, 1),
                                     MaskedSigmoid())
         self.expand.apply(_wi)
