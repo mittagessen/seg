@@ -33,6 +33,7 @@ class BaselineSet(data.Dataset):
             for v, m in self.cmap:
                 cnts[v] += np.count_nonzero(np.all(target == m, axis=1))
             tot += target.size
+        cnts = cnts[cnts == 0] = 1
         return 1 / (cnts / tot)
 
     def transform(self, image, target):
