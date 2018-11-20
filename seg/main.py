@@ -185,10 +185,10 @@ def run_crf(img, output):
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
 def pred(model, device, images):
-    m = ConvReNet(4)
-    m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
+    net = ResUNet(4)
+    net.load_state_dict(torch.load(model, map_location='cpu'))
     device = torch.device(device)
-    m.to(device, non_blocking=True)
+    net.to(device, non_blocking=True)
 
     resize = transforms.Resize(1200)
     transform = transforms.Compose([transforms.Resize(1200), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
@@ -204,7 +204,7 @@ def pred(model, device, images):
             im = Image.open(img).convert('RGB')
             norm_im = transform(im)
             print('running forward pass')
-            o = m.forward(norm_im.unsqueeze(0))
+            o = net.forward(norm_im.unsqueeze(0))
             probs = F.softmax(o, dim=1).squeeze()
             print('CRF postprocessing')
             o = run_crf(resize(im), probs)
