@@ -28,12 +28,12 @@ class BaselineSet(data.Dataset):
         tot = 0
         cnts = torch.zeros(4)
         for im in self.targets:
-            target = Image.open(im)
+            target = Image.open(im).convert('RGB')
             target = np.array(target)
             for v, m in self.cmap:
-                cnts[v] += np.count_nonzero(np.all(target == m, axis=1))
+                cnts[v] += np.count_nonzero(np.all(target == m, axis=-1))
             tot += target.size
-        cnts = cnts[cnts == 0] = 1
+        cnts[0] = tot - cnts.sum()
         return 1 / (cnts / tot)
 
     def transform(self, image, target):
