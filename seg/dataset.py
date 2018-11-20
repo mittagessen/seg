@@ -43,13 +43,17 @@ class BaselineSet(data.Dataset):
 
         res = resize(image)
         image = res
-        #image = jitter(res)
+        image = jitter(res)
         target = resize(target)
 
         if self.augment:
             if np.random.random() > 0.5:
                 image = tf.hflip(image)
                 target = tf.hflip(target)
+
+            if np.random.random() > 0.5:
+                image = tf.vflip(image)
+                target = tf.vflip(target)
 
             angle = np.random.uniform(-10, 10)
             image = tf.rotate(image, angle, resample=Image.BICUBIC)
