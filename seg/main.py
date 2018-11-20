@@ -181,12 +181,12 @@ def run_crf(img, output):
     return torch.tensor(np.argmax(q, axis=0)).reshape(*img.size[::-1])
 
 @cli.command()
-@click.option('-m', '--model', default=None, help='model file')
+@click.option('-m', '--model-file', default=None, help='model file')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.argument('images', nargs=-1)
-def pred(model, device, images):
-    net = ResUNet(4)
-    net.load_state_dict(torch.load(model, map_location='cpu'))
+def pred(model_file, device, images):
+    net = model.ResUNet(4)
+    net.load_state_dict(torch.load(model_file, map_location='cpu'))
     device = torch.device(device)
     net.to(device, non_blocking=True)
 
