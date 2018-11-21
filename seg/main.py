@@ -183,8 +183,9 @@ def run_crf(img, output):
 @cli.command()
 @click.option('-m', '--model-file', default=None, help='model file')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
+@click.option('-c/-n', '--crf/--no-crf', default=False, help='switch for crf postprocessing')
 @click.argument('images', nargs=-1)
-def pred(model_file, device, images):
+def pred(model_file, device, crf, images):
     net = model.ResUNet(4)
     net.load_state_dict(torch.load(model_file, map_location='cpu'))
     device = torch.device(device)
@@ -205,9 +206,13 @@ def pred(model_file, device, images):
             norm_im = transform(im)
             print('running forward pass')
             o = net.forward(norm_im.unsqueeze(0))
-            probs = F.softmax(o, dim=1).squeeze()
-            print('CRF postprocessing')
-            o = run_crf(resize(im), probs)
+            o = F.softmax(o, dim=1).squeeze()
+            if crf:
+                print('CRF postprocessing')
+                print(o.shape)
+                o = run_crf(resize(im), o)
+            else:
+                o = np.argmax(o, axis=0)
             print('result extraction')
             # resample to original size
             cls = np.array(Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST))
