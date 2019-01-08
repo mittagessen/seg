@@ -10,7 +10,6 @@ def autoinvert(image):
     assert amin(image) >= 0
     assert amax(image) <= 1
     if sum(image>0.9) > sum(image<0.1):
-        print('inverting')
         return 1-image
     else:
         return image
@@ -192,8 +191,8 @@ def make_fibrous_image(shape, nfibers=300, l=300, a=0.2, stepsize=0.5, range=(0.
 #
 
 def printlike_multiscale(image, blur=1.0, blotches=5e-5):
-    selector = autoinvert(image)
-    selector = random_blotches(selector, 3*blotches, blotches)
+#    selector = autoinvert(image)
+    selector = random_blotches(image, 3*blotches, blotches)
     paper = make_multiscale_noise_uniform(image.shape, range=(0.5, 1.0))
     ink = make_multiscale_noise_uniform(image.shape, range=(0.0, 0.5))
     blurred = ndi.gaussian_filter(selector, blur)
