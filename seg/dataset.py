@@ -9,35 +9,40 @@ from PIL import Image
 from scipy.ndimage import maximum_filter, find_objects
 from skimage.morphology import convex_hull_image
 from torch.nn.utils.rnn import pad_sequence
+from seg import degrade
 
 class BaselineSet(data.Dataset):
     def __init__(self, imgs, augment=True):
         super(BaselineSet, self).__init__()
         self.imgs = [x[:-10] for x in imgs]
-        self.augment = augment
 
     def __getitem__(self, idx):
         im = self.imgs[idx]
         target = Image.open('{}.seeds.png'.format(im))
-        orig = Image.open('{}.plain.png'.format(im)).convert('RGB')
+        orig = Image.open('{}.plain.png'.format(im))
 
         return self.transform(orig, target)
 
     def transform(self, image, target):
+        image = image.convert('L')
         resize = transforms.Resize(900)
-        jitter = transforms.ColorJitter()
-        norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
-        res = tf.to_tensor(resize(image))
-        image = norm(res)
-        #image = jitter(res)
-        target = Image.fromarray(((np.array(target) > 0) * 255).astype('uint8'))
-        target = resize(target)
-        return image, tf.to_tensor(target)
+        image = tf.to_tensor(resize(image)).squeeze(0)
+        target = tf.to_tensor(resize(target)).squeeze(0)
+
+        noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5), 3.0)
+        image = degrade.distort_with_noise(image, noise)
+        target = degrade.distort_with_noise(target, noise)
+
+        image = 1-degrade.printlike_multiscale(image, blur=1)
+
+        target = Image.fromarray(((target > 0) * 255).astype('uint8'))
+        image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
+
+        return tf.to_tensor(image), tf.to_tensor(np.expand_dims(target, 2))
 
     def __len__(self):
         return len(self.imgs)
-
 
 def dilate_collate(batch):
     """
