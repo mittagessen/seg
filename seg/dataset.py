@@ -45,6 +45,15 @@ class BaselineSet(data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
+    def get_target_weights(self):
+        tot = 0
+        cnt = 0
+        for im in self.imgs:
+            ar = np.array(Image.open('{}.seeds.png'.format(im)))
+            tot += ar.size
+            cnt += np.count_nonzero(ar)
+        return torch.tensor(tot / cnt)
+
 def dilate_collate(batch):
     """
     Pads all images in batch to the largest image size and assembles a tensor.

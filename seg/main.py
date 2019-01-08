@@ -64,16 +64,16 @@ def cli():
     pass
 
 @cli.command()
-@click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
-@click.option('-l', '--lrate', default=0.3, help='initial learning rate')
-@click.option('-w', '--workers', default=0, help='number of workers loading training data')
-@click.option('-d', '--device', default='cpu', help='pytorch device')
-@click.option('-b', '--batch-size', default=8, help='batch size')
-@click.option('-v', '--validation', default='val', help='validation set location')
-@click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
-@click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
-@click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
-@click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
+@click.option('-n', '--name', default='model', help='prefix for checkpoint file names', show_default=True)
+@click.option('-l', '--lrate', default=0.3, help='initial learning rate', show_default=True)
+@click.option('-w', '--workers', default=0, help='number of workers loading training data', show_default=True)
+@click.option('-d', '--device', default='cpu', help='pytorch device', show_default=True)
+@click.option('-b', '--batch-size', default=8, help='batch size', show_default=True)
+@click.option('-v', '--validation', default='val', help='validation set location', show_default=True)
+@click.option('--lag', default=20, help='Number of epochs to wait before stopping training without improvement', show_default=True)
+@click.option('--min-delta', default=0.005, help='Minimum improvement between epochs to reset early stopping', show_default=True)
+@click.option('--optimizer', default='Adam', type=click.Choice(['SGD', 'Adam']), help='optimizer', show_default=True)
+@click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4), show_default=True)
 @click.argument('ground_truth', nargs=1)
 def train_dilation(name, lrate, workers, device, batch_size, validation, lag, min_delta, optimizer, threads, ground_truth):
 
@@ -130,7 +130,8 @@ def train_dilation(name, lrate, workers, device, batch_size, validation, lag, mi
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
 @click.option('-t', '--arch', default='ResUNet', type=click.Choice(['ResSkipNet', 'ConvReNet', 'ResUNet']))
-@click.option('-l', '--lrate', default=0.3, help='initial learning rate')
+@click.option('-l', '--lrate', default=0.003, help='initial learning rate')
+@click.option('--weight-decay', default=1e-5, help='weight decay')
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
@@ -139,9 +140,10 @@ def train_dilation(name, lrate, workers, device, batch_size, validation, lag, mi
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
 @click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
+@click.option('--weigh-loss/--no-weigh-loss', show_default=True, default=True, help='Weighs cross entropy loss for class frequency')
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
-          min_delta, optimizer, threads,
+def train(name, arch, lrate, weight_decay, workers, device, validation, refine_encoder, lag,
+          min_delta, optimizer, threads, weigh_loss,
           ground_truth):
 
     print('model output name: {}'.format(name))
@@ -165,12 +167,16 @@ def train(name, arch, lrate, workers, device, validation, refine_encoder, lag,
     else:
         raise Exception('invalid model type selected')
 
-    criterion = nn.BCELoss()
+    weights = None
+    if weigh_loss:
+        weights = train_set.get_target_weights()
+        print(weights)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=weights)
 
     if optimizer == 'SGD':
-        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+        opti = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
     else:
-        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate)
+        opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
     scheduler = lr_scheduler.ReduceLROnPlateau(opti, patience=5, mode='max', verbose=True)
     st_it = EarlyStopping(train_data_loader, min_delta, lag)
     val_loss = 1.0

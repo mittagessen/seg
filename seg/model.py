@@ -165,7 +165,7 @@ class ResUNet(nn.Module):
         map_3 = self.dropout(self.upsample_3(torch.cat([map_3, map_4], 1), output_size=map_2.size()))
         map_2 = self.dropout(self.upsample_2(torch.cat([map_2, map_3], 1), output_size=map_1.size()))
         map_1 = self.dropout(self.upsample_1(torch.cat([map_1, map_2], 1), output_size=map_1.size()[:2] + siz[2:]))
-        return self.nonlin(self.squash(map_1))
+        return self.squash(map_1)
 
     def init_weights(self):
         self.upsample_4.apply(_wi)
