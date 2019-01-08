@@ -34,7 +34,8 @@ class BaselineSet(data.Dataset):
         image = degrade.distort_with_noise(image, noise)
         target = degrade.distort_with_noise(target, noise)
 
-        image = 1-degrade.printlike_multiscale(image, blur=1)
+        if np.random.randint(2):
+            image = 1-degrade.printlike_multiscale(image, blur=1)
 
         target = Image.fromarray(((target > 0) * 255).astype('uint8'))
         image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
