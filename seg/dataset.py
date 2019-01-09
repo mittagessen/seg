@@ -39,10 +39,12 @@ class BaselineSet(data.Dataset):
             if np.random.randint(2):
                 image = 1-degrade.printlike_multiscale(image, blur=1)
 
-        target = Image.fromarray(((target > 0) * 255).astype('uint8'))
-        image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
+            target = Image.fromarray(((target > 0) * 255).astype('uint8'))
+            target = np.expand_dims(target, 2)
+            image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
 
-        return tf.to_tensor(image), tf.to_tensor(np.expand_dims(target, 2))
+
+        return tf.to_tensor(image), tf.to_tensor(target)
 
     def __len__(self):
         return len(self.imgs)
