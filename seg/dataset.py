@@ -25,13 +25,15 @@ class BaselineSet(data.Dataset):
         return self.transform(orig, target)
 
     def transform(self, image, target):
-        image = image.convert('L')
         resize = transforms.Resize(900)
 
-        image = tf.to_tensor(resize(image)).squeeze(0)
-        target = tf.to_tensor(resize(target)).squeeze(0)
+        image = resize(image)
+        target = resize(target)
 
         if self.augment:
+            image = image.convert('L')
+            image = tf.to_tensor(image).squeeze(0)
+            target = tf.to_tensor(target).squeeze(0)
             noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5), 3.0)
             image = degrade.distort_with_noise(image, noise)
             target = degrade.distort_with_noise(target, noise)
@@ -43,8 +45,9 @@ class BaselineSet(data.Dataset):
             target = np.expand_dims(target, 2)
             image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
             return tf.to_tensor(image), tf.to_tensor(target)
-
-        return image, target
+        else:
+            target = Image.fromarray(((np.array(target) > 0) * 255).astype('uint8'))
+            return tf.to_tensor(image.convert('RGB')), tf.to_tensor(target)
 
     def __len__(self):
         return len(self.imgs)
