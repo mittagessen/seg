@@ -30,12 +30,13 @@ class BaselineSet(data.Dataset):
         image = tf.to_tensor(resize(image)).squeeze(0)
         target = tf.to_tensor(resize(target)).squeeze(0)
 
-        noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5), 3.0)
-        image = degrade.distort_with_noise(image, noise)
-        target = degrade.distort_with_noise(target, noise)
+        if self.augment:
+            noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5), 3.0)
+            image = degrade.distort_with_noise(image, noise)
+            target = degrade.distort_with_noise(target, noise)
 
-        if np.random.randint(2):
-            image = 1-degrade.printlike_multiscale(image, blur=1)
+            if np.random.randint(2):
+                image = 1-degrade.printlike_multiscale(image, blur=1)
 
         target = Image.fromarray(((target > 0) * 255).astype('uint8'))
         image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')

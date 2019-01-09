@@ -141,16 +141,17 @@ def train_dilation(name, lrate, workers, device, batch_size, validation, lag, mi
 @click.option('--optimizer', show_default=True, default='SGD', type=click.Choice(['SGD', 'Adam']), help='optimizer')
 @click.option('--threads', default=min(len(os.sched_getaffinity(0)), 4))
 @click.option('--weigh-loss/--no-weigh-loss', show_default=True, default=True, help='Weighs cross entropy loss for class frequency')
+@click.option('--augment/--no-augment', show_default=True, default=True, help='Enables data augmentation')
 @click.argument('ground_truth', nargs=1)
 def train(name, arch, lrate, weight_decay, workers, device, validation, refine_encoder, lag,
-          min_delta, optimizer, threads, weigh_loss,
+          min_delta, optimizer, threads, weigh_loss, augment,
           ground_truth):
 
     print('model output name: {}'.format(name))
 
     torch.set_num_threads(threads)
 
-    train_set = BaselineSet(glob.glob('{}/**/*.seeds.png'.format(ground_truth), recursive=True), augment=False)
+    train_set = BaselineSet(glob.glob('{}/**/*.seeds.png'.format(ground_truth), recursive=True), augment=augment)
     train_data_loader = DataLoader(dataset=train_set, num_workers=workers, batch_size=1, shuffle=True, pin_memory=True)
     val_set = BaselineSet(glob.glob('{}/**/*.seeds.png'.format(validation), recursive=True), augment=False)
     val_data_loader = DataLoader(dataset=val_set, num_workers=workers, batch_size=1, pin_memory=True)
@@ -220,10 +221,11 @@ def evaluate(model, device, criterion, data_loader):
          for sample in data_loader:
              input, target = sample[0].to(device), sample[1].to(device)
              o = model(input)
+             loss += criterion(o, target)
+             o = model.nonlin(o)
              pred = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
              tp = float((pred == target.detach().squeeze().cpu().numpy()).sum())
              accuracy += tp / len(target.view(-1))
-             loss += criterion(o, target)
     return accuracy / len(data_loader), loss / len(data_loader)
 
 def run_crf(img, output):
