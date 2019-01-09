@@ -119,13 +119,13 @@ def train_dilation(name, lrate, workers, device, batch_size, validation, lag, mi
                 opti.step()
         torch.save(model.state_dict(), '{}_{}.ckpt'.format(name, epoch))
         print("===> epoch {} complete: avg. loss: {:.4f}".format(epoch, epoch_loss / len(train_data_loader)))
-        val_acc, val_loss = evaluate(model, device, criterion, val_data_loader)
+        val_acc, val_recall, val_precision, val_loss = evaluate(model, device, criterion, val_data_loader)
         model.train()
         #if optimizer == 'SGD':
         #    scheduler.step(val_loss)
         ##st_it.update(val_loss)
         imsave('{:06d}.png'.format(epoch), o.detach().cpu().squeeze().numpy())
-        print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f})".format(epoch, val_loss, val_acc))
+        print("===> epoch {} validation loss: {:.4f} (accuracy: {:.4f}, recall: {:.4f}, precision: {:.4f})".format(epoch, val_loss, val_acc, val_recall, val_precision))
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
@@ -216,6 +216,8 @@ def evaluate(model, device, criterion, data_loader):
     """
     model.eval()
     accuracy = 0.0
+    recall = 0.0
+    precision = 0.0
     loss = 0.0
     with torch.no_grad():
          for sample in data_loader:
@@ -225,8 +227,10 @@ def evaluate(model, device, criterion, data_loader):
              o = model.nonlin(o)
              pred = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
              tp = float((pred == target.detach().squeeze().cpu().numpy()).sum())
+             recall += tp / target.sum()
+             precision += tp / pred.sum()
              accuracy += tp / len(target.view(-1))
-    return accuracy / len(data_loader), loss / len(data_loader)
+    return accuracy / len(data_loader), recall / len(data_loader), precision / len(data_loader), loss / len(data_loader)
 
 def run_crf(img, output):
     d = dcrf.DenseCRF2D(img.size[0], img.size[1], output.size(0))
