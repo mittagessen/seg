@@ -15,6 +15,7 @@ class BaselineSet(data.Dataset):
     def __init__(self, imgs, augment=True):
         super(BaselineSet, self).__init__()
         self.imgs = [x[:-10] for x in imgs]
+        self.augment = augment
 
     def __getitem__(self, idx):
         im = self.imgs[idx]
