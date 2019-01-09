@@ -42,7 +42,7 @@ class BaselineSet(data.Dataset):
             target = Image.fromarray(((target > 0) * 255).astype('uint8'))
             target = np.expand_dims(target, 2)
             image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
-
+            return image, target
 
         return tf.to_tensor(image), tf.to_tensor(target)
 
