@@ -11,6 +11,8 @@ from skimage.morphology import convex_hull_image
 from torch.nn.utils.rnn import pad_sequence
 from seg import degrade
 
+from scipy.misc import imsave
+
 class BaselineSet(data.Dataset):
     def __init__(self, imgs, augment=True):
         super(BaselineSet, self).__init__()
@@ -34,9 +36,11 @@ class BaselineSet(data.Dataset):
             image = image.convert('L')
             image = tf.to_tensor(image).squeeze(0)
             target = tf.to_tensor(target).squeeze(0)
-            noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5), 3.0)
+            target = (target > 0) * 255
+            noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5, 20), 3.0)
+            tnoise = noise.copy()
             image = degrade.distort_with_noise(image, noise)
-            target = degrade.distort_with_noise(target, noise)
+            target = degrade.distort_with_noise(target, tnoise)
 
             transform = degrade.random_transform()
             image = degrade.transform_image(image, **transform)
@@ -44,7 +48,6 @@ class BaselineSet(data.Dataset):
             del transform['aniso']
             target = degrade.transform_image(target, **transform)
 
-            target = Image.fromarray(((target > 0) * 255).astype('uint8'))
             target = np.expand_dims(target, 2)
             image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
             return tf.to_tensor(image), tf.to_tensor(target)
