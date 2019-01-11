@@ -38,8 +38,11 @@ class BaselineSet(data.Dataset):
             image = degrade.distort_with_noise(image, noise)
             target = degrade.distort_with_noise(target, noise)
 
-            if np.random.randint(2):
-                image = 1-degrade.printlike_multiscale(image, blur=1)
+            transform = degrade.random_transform()
+            image = degrade.transform_image(image, **transform)
+            # only translate/rotate/scale baselines
+            del transform['aniso']
+            target = degrade.transform_image(target, **transform)
 
             target = Image.fromarray(((target > 0) * 255).astype('uint8'))
             target = np.expand_dims(target, 2)
