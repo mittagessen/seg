@@ -37,16 +37,20 @@ class BaselineSet(data.Dataset):
             image = tf.to_tensor(image).squeeze(0)
             target = tf.to_tensor(target).squeeze(0)
             target = (target > 0) * 255
-            noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5, 20), 3.0)
-            tnoise = noise.copy()
-            image = degrade.distort_with_noise(image, noise)
-            target = degrade.distort_with_noise(target, tnoise)
+            padding = np.random.randint(100, size=2), np.random.randint(100, size=2)
+            image = np.pad(image, padding, mode='constant')
+            target = np.pad(target, padding, mode='constant')
 
-            transform = degrade.random_transform()
-            image = degrade.transform_image(image, **transform)
-            # only translate/rotate/scale baselines
-            del transform['aniso']
-            target = degrade.transform_image(target, **transform)
+            if np.random.randint(2):
+                noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5, 20), 3.0)
+                tnoise = noise.copy()
+                image = degrade.distort_with_noise(image, noise)
+                target = degrade.distort_with_noise(target, tnoise)
+
+            if np.random.randint(2):
+                transform = degrade.random_transform()
+                image = degrade.transform_image(image, **transform)
+                target = degrade.transform_image(target, **transform)
 
             target = np.expand_dims(target, 2)
             image = Image.fromarray((image * 255).astype('uint8')).convert('RGB')
