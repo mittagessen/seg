@@ -25,7 +25,7 @@ from scipy.ndimage import label
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
 from ignite.contrib.handlers import ProgressBar
 from ignite.engine import Engine, Events
-from ignite.handlers import ModelCheckpoint, EarlyStopping
+from ignite.handlers import ModelCheckpoint, EarlyStopping, TerminateOnNan
 from ignite.metrics import Accuracy, Precision, Recall, RunningAverage
 
 @click.group()
@@ -96,7 +96,7 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
                                                                                               'precision': Precision(output_transform=output_preprocess),
                                                                                               'recall': Recall(output_transform=output_preprocess)})
     ckpt_handler = ModelCheckpoint('.', name, save_interval=1, n_saved=10, require_empty=False)
-    est_handler = EarlyStopping(lag, score_function, traine)
+    est_handler = EarlyStopping(lag, score_function, trainer)
     RunningAverage(output_transform=lambda x: x).attach(trainer, 'loss')
 
     progress_bar = ProgressBar(persist=True)
@@ -104,6 +104,7 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
 
     evaluator.add_event_handler(Events.COMPLETED, est_handler)
     trainer.add_event_handler(event_name=Events.EPOCH_COMPLETED, handler=ckpt_handler, to_save={'net': model})
+    trainer.add_event_handler(event_name=Events.ITERATION_COMPLETED, handler=TerminateOnNan())
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def log_validation_results(engine):
