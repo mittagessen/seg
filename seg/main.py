@@ -25,7 +25,7 @@ from scipy.ndimage import label
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
 from ignite.contrib.handlers import ProgressBar
 from ignite.engine import Engine, Events
-from ignite.handlers import ModelCheckpoint, Timer
+from ignite.handlers import ModelCheckpoint, EarlyStopping
 from ignite.metrics import Accuracy, Precision, Recall, RunningAverage
 
 @click.group()
@@ -82,10 +82,8 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
         opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
 
     def score_function(engine):
-        val_loss = engine.state.metrics['foo']
+        val_loss = engine.state.metrics['accuracy']
         return -val_loss
-
-    trainer = create_supervised_trainer(model, opti, criterion, device=device, non_blocking=True)
 
     def output_preprocess(output):
         o, target = output
@@ -93,16 +91,18 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
         o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5, 2.5)
         return torch.from_numpy(o.astype('f')).unsqueeze(0).unsqueeze(0), target.double()
 
+    trainer = create_supervised_trainer(model, opti, criterion, device=device, non_blocking=True)
     evaluator = create_supervised_evaluator(model, device=device, non_blocking=True, metrics={'accuracy': Accuracy(output_transform=output_preprocess),
                                                                                               'precision': Precision(output_transform=output_preprocess),
                                                                                               'recall': Recall(output_transform=output_preprocess)})
     ckpt_handler = ModelCheckpoint('.', name, save_interval=1, n_saved=10, require_empty=False)
-    #est_handler = EarlyStopping(lag, score_function, trainer)
+    est_handler = EarlyStopping(lag, score_function, traine)
     RunningAverage(output_transform=lambda x: x).attach(trainer, 'loss')
 
     progress_bar = ProgressBar(persist=True)
     progress_bar.attach(trainer, ['loss'])
 
+    evaluator.add_event_handler(Events.COMPLETED, est_handler)
     trainer.add_event_handler(event_name=Events.EPOCH_COMPLETED, handler=ckpt_handler, to_save={'net': model})
 
     @trainer.on(Events.EPOCH_COMPLETED)
@@ -113,8 +113,7 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
                                                                                                                    metrics['accuracy'],
                                                                                                                    metrics['recall'],
                                                                                                                    metrics['precision']))
-
-    trainer.run(train_data_loader, max_epochs=10)
+    trainer.run(train_data_loader)
 
 
 @cli.command()
