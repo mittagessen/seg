@@ -1,5 +1,7 @@
-pydensecrf
 numpy
+scikit-image
+scipy
 torchvision
 torch>=0.4.0
+pytorch-ignite
 click

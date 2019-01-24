@@ -42,7 +42,7 @@ class BaselineSet(data.Dataset):
             target = np.pad(target, padding, mode='constant')
 
             if np.random.randint(2):
-                noise = degrade.bounded_gaussian_noise(image.shape, np.random.randint(5, 20), 3.0)
+                noise = degrade.bounded_gaussian_noise(image.shape, np.random.choice([50.0, 5.0, 0.0]), np.random.choice([10.0, 3.0, 1.0]))
                 tnoise = noise.copy()
                 image = degrade.distort_with_noise(image, noise)
                 target = degrade.distort_with_noise(target, tnoise)
