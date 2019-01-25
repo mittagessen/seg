@@ -114,7 +114,7 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
                                                                                                                    metrics['accuracy'],
                                                                                                                    metrics['recall'],
                                                                                                                    metrics['precision']))
-    trainer.run(train_data_loader)
+    trainer.run(train_data_loader, max_epochs=1000)
 
 
 @cli.command()
