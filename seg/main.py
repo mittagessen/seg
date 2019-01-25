@@ -89,7 +89,7 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
         o, target = output
         o = torch.sigmoid(o)
         o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5, 2.5)
-        return torch.from_numpy(o.astype('f')).unsqueeze(0).unsqueeze(0), target.double()
+        return torch.from_numpy(o.astype('f')).unsqueeze(0).unsqueeze(0).to(device), target.double().to(device)
 
     trainer = create_supervised_trainer(model, opti, criterion, device=device, non_blocking=True)
     evaluator = create_supervised_evaluator(model, device=device, non_blocking=True, metrics={'accuracy': Accuracy(output_transform=output_preprocess),
