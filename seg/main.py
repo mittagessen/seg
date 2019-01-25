@@ -140,12 +140,14 @@ def pred(model, device, images):
             o = m.forward(norm_im.unsqueeze(0))
             cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
-            o = hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5)
+            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5, 2.5)
             print('result extraction')
             # resample to original size
             cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_class.png')
-
+            # running line vectorization
+            with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
+                json.dump(vectorize_line(o), fp)
 
 if __name__ == '__main__':
     cli()
