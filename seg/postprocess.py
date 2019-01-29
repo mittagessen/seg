@@ -1,10 +1,13 @@
 import numpy as np
-from scipy.ndimage.filters import gaussian_filter
-from scipy.ndimage import label
 from scipy.signal import convolve2d
+from scipy.ndimage import label
+from scipy.ndimage.filters import gaussian_filter
 
-from skimage.morphology import skeletonize
+from skimage.draw import line
 from skimage.graph import MCP_Connect
+from skimage.measure import approximate_polygon
+from skimage.transform import estimate_transform
+from skimage.morphology import skeletonize
 
 from collections import defaultdict
 
@@ -55,3 +58,51 @@ def vectorize_lines(im: np.ndarray):
     mcp.find_costs(line_extrema)
     # subsample lines using Douglas-Peucker
     return [approximate_polygon(line, 3).tolist() for line in mcp.get_connections()]
+
+
+def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int, ctl_point_sample=5):
+    """
+    Args:
+        im (np.ndarray):
+        polyline (np.ndarray): Array of point (n, 2) defining a polyline.
+        context (int): Padding around baseline for extraction.
+        ctl_point_sample (int): interval for control point sampling on the
+                                baseline
+
+    Returns:
+        A dewarped image of the line.
+    """
+    # acquire control points by sampling the polyline, find perpendicular
+    # points at distance `context` for each sample and estimate a
+    # piecewise-affine transformation from those.
+    def _unit_ortho_vec(p1, p2):
+        vy = p1[0] - p2[0]
+        vx = p1[1] - p2[1]
+        dist = math.sqrt(vx**2 + vy**2)
+        return (vx/dist, vy/dist)
+
+    # start point the line is normalized on
+    start = polyline[0]
+    src_points = []
+    upper_src_points = []
+    lower_src_points = []
+    dst_points = []
+    for lineseg in zip(polyline, polyline[1::]):
+        # calculate orthogonal vector
+        uy, ux = _unit_ortho_vec(*lineseg)
+        # sample at distance
+        samples = np.transpose(line(lineseg[0][0], lineseg[0][1], lineseg[1][0], lineseg[1][1]))[::ctl_point_sample]
+        src_points.extend(samples.tolist())
+        # evaluate at sample interval
+        lower = samples.T[0] - context/2 * uy, samples.T[1] + context/2 * ux
+        lower_src_points.extend(np.stack(lower, axis=1).tolist())
+        upper =  samples.T[0] + context/2 * uy, samples.T[1] - context/2 * ux
+        upper_src_points.extend(np.stack(upper, axis=1).tolist())
+    dst_points.extend(line(start[0], start[1], start[0], start[1] + ctl_point_sample * len(src_points))[::ctl_point_sample])
+    # add control points beneath baseline
+    src_points.extend(lower_src_points)
+    dst_points.extend(line(start[0] + context/2, start[1], start[0] + context/2, start[1] + ctl_point_sample * len(src_points))[::ctl_point_sample])
+    # add control points above baseline
+    src_points.extend(upper_src_points)
+    dst_points.extend(line(start[0] - context/2, start[1], start[0] - context/2, start[1] + ctl_point_sample * len(src_points))[::ctl_point_sample])
+    transform = estimate_transform('piecewise-affine', src_points, dst_points)

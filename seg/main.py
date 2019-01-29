@@ -6,6 +6,7 @@ import torchvision.transforms.functional as tf
 import os
 import glob
 import torch
+import json
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -20,7 +21,6 @@ from PIL import Image
 import click
 
 from scipy.ndimage import label
-
 
 from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
 from ignite.contrib.handlers import ProgressBar
@@ -123,10 +123,9 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
 @click.argument('images', nargs=-1)
 def pred(model, device, images):
 
-    m = ResUNet(1)
-    m.load_state_dict(torch.load(model, map_location=lambda storage, loc: storage))
     device = torch.device(device)
-    m.to(device)
+    with open(model, 'rb') as fp:
+        m = torch.load(fp, map_location=device)
 
     resize = transforms.Resize(1200)
     transform = transforms.Compose([transforms.Resize(1200), transforms.ToTensor(), transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
@@ -138,6 +137,8 @@ def pred(model, device, images):
             norm_im = transform(im)
             print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
+            o = torch.sigmoid(o)
+            imsave('foo.png', o.squeeze())
             cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
             o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5, 2.5)
@@ -147,7 +148,7 @@ def pred(model, device, images):
             cls.save(os.path.splitext(img)[0] + '_class.png')
             # running line vectorization
             with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
-                json.dump(vectorize_line(o), fp)
+                json.dump(vectorize_lines(o), fp)
 
 if __name__ == '__main__':
     cli()
