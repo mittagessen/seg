@@ -33,7 +33,7 @@ def vectorize_lines(im: np.ndarray):
     line_skel = line_skel > 0
     kernel = np.array([[1,1,1],[1,10,1],[1,1,1]])
     line_extrema = np.transpose(np.where((convolve2d(line_skel, kernel, mode='same') == 11) * line_skel))
-    # find least cost path between extrema
+    # find all least cost paths between extrema
     class LineMCP(MCP_Connect):
         def __init__(self, *args, **kwargs):
            super().__init__(*args, **kwargs)
@@ -58,8 +58,15 @@ def vectorize_lines(im: np.ndarray):
 
     mcp = LineMCP(~line_skel)
     mcp.find_costs(line_extrema)
+    # filter connections by connected component. only keep longest path.
+    connections = defaultdict(list)
+    label_im, _ = label(line_skel, structure=np.ones((3, 3)))
+    for path in mcp.get_connections():
+        cc = label_im[tuple(path[0, :])]
+        if len(path) > len(connections[cc]):
+            connections[cc] = path
     # subsample lines using Douglas-Peucker
-    return [approximate_polygon(line, 3).tolist() for line in mcp.get_connections()]
+    return [approximate_polygon(line, 3).tolist() for line in connections.values()]
 
 
 def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int):
