@@ -5,28 +5,26 @@ import torchvision.transforms.functional as tf
 
 import os
 import glob
-import torch
 import json
+import click
+import torch
 import torch.nn as nn
 import torch.optim as optim
+
+from PIL import Image
+from scipy.misc import imsave
+from torchvision import transforms
 from torch.utils.data import DataLoader
+
+from ignite.engine import Engine, Events, create_supervised_trainer, create_supervised_evaluator
+from ignite.metrics import Accuracy, Precision, Recall, RunningAverage
+from ignite.handlers import ModelCheckpoint, EarlyStopping, TerminateOnNan
+from ignite.contrib.handlers import ProgressBar
 
 from seg.model import ResUNet
 from seg.dataset import BaselineSet
-from seg.postprocess import denoising_hysteresis_thresh, vectorize_lines
+from seg.postprocess import denoising_hysteresis_thresh, vectorize_lines, line_extractor
 
-from scipy.misc import imsave
-from torchvision import transforms
-from PIL import Image
-import click
-
-from scipy.ndimage import label
-
-from ignite.engine import Events, create_supervised_trainer, create_supervised_evaluator
-from ignite.contrib.handlers import ProgressBar
-from ignite.engine import Engine, Events
-from ignite.handlers import ModelCheckpoint, EarlyStopping, TerminateOnNan
-from ignite.metrics import Accuracy, Precision, Recall, RunningAverage
 
 @click.group()
 def cli():
@@ -120,8 +118,9 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
 @cli.command()
 @click.option('-m', '--model', default=None, help='model file')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
+@click.option('-c', '--context', default=80, help='context around baseline')
 @click.argument('images', nargs=-1)
-def pred(model, device, images):
+def pred(model, device, context, images):
 
     device = torch.device(device)
     with open(model, 'rb') as fp:
@@ -138,7 +137,6 @@ def pred(model, device, images):
             print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
             o = torch.sigmoid(o)
-            imsave('foo.png', o.squeeze())
             cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
             o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5, 2.5)
@@ -147,8 +145,13 @@ def pred(model, device, images):
             cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_class.png')
             # running line vectorization
+            lines = vectorize_lines(np.array(cls))
             with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
-                json.dump(vectorize_lines(o), fp)
+                json.dump(lines, fp)
+            for idx, line in enumerate(lines):
+                l = line_extractor(np.array(im.convert('L')), line, 80)
+                Image.fromarray(line_extractor(np.array(im.convert('L')), line, 80)).save('{}_{}.png'.format(os.path.splitext(img)[0], idx))
+
 
 if __name__ == '__main__':
     cli()

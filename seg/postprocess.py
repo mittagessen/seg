@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from scipy.signal import convolve2d
 from scipy.ndimage import label
@@ -7,7 +8,7 @@ from skimage.draw import line
 from skimage.graph import MCP_Connect
 from skimage.measure import approximate_polygon
 from skimage.transform import estimate_transform
-from skimage.morphology import skeletonize
+from skimage.morphology import skeletonize_3d
 
 from collections import defaultdict
 
@@ -25,9 +26,11 @@ def vectorize_lines(im: np.ndarray):
     """
     Vectorizes lines from a binarized array. Inspired by the dhSegment package.
     """
-    line_skel = skeletonize(im)
+
+    line_skel = skeletonize_3d(im)
     # find extremities by convolving with 3x3 filter (value == 2 on the line because of
     # 8-connected skeleton)
+    line_skel = line_skel > 0
     kernel = np.array([[1,1,1],[1,10,1],[1,1,1]])
     line_extrema = np.transpose(np.where((convolve2d(line_skel, kernel, mode='same') == 11) * line_skel))
     # find least cost path between extrema
@@ -53,21 +56,18 @@ def vectorize_lines(im: np.ndarray):
         def goal_reached(self, int_index, float_cumcost):
             return 2 if float_cumcost else 0
 
-
     mcp = LineMCP(~line_skel)
     mcp.find_costs(line_extrema)
     # subsample lines using Douglas-Peucker
     return [approximate_polygon(line, 3).tolist() for line in mcp.get_connections()]
 
 
-def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int, ctl_point_sample=5):
+def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int):
     """
     Args:
         im (np.ndarray):
         polyline (np.ndarray): Array of point (n, 2) defining a polyline.
         context (int): Padding around baseline for extraction.
-        ctl_point_sample (int): interval for control point sampling on the
-                                baseline
 
     Returns:
         A dewarped image of the line.
@@ -81,28 +81,19 @@ def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int, ctl_point
         dist = math.sqrt(vx**2 + vy**2)
         return (vx/dist, vy/dist)
 
-    # start point the line is normalized on
-    start = polyline[0]
-    src_points = []
-    upper_src_points = []
-    lower_src_points = []
-    dst_points = []
+    # pick start of line as left end for now (folded lines are problematic)
+    if polyline[0][1] > polyline[-1][1]:
+        polyline = list(reversed(polyline))
+    upper_pts = []
+    lower_pts = []
     for lineseg in zip(polyline, polyline[1::]):
         # calculate orthogonal vector
         uy, ux = _unit_ortho_vec(*lineseg)
-        # sample at distance
-        samples = np.transpose(line(lineseg[0][0], lineseg[0][1], lineseg[1][0], lineseg[1][1]))[::ctl_point_sample]
-        src_points.extend(samples.tolist())
-        # evaluate at sample interval
-        lower = samples.T[0] - context/2 * uy, samples.T[1] + context/2 * ux
-        lower_src_points.extend(np.stack(lower, axis=1).tolist())
-        upper =  samples.T[0] + context/2 * uy, samples.T[1] - context/2 * ux
-        upper_src_points.extend(np.stack(upper, axis=1).tolist())
-    dst_points.extend(line(start[0], start[1], start[0], start[1] + ctl_point_sample * len(src_points))[::ctl_point_sample])
-    # add control points beneath baseline
-    src_points.extend(lower_src_points)
-    dst_points.extend(line(start[0] + context/2, start[1], start[0] + context/2, start[1] + ctl_point_sample * len(src_points))[::ctl_point_sample])
-    # add control points above baseline
-    src_points.extend(upper_src_points)
-    dst_points.extend(line(start[0] - context/2, start[1], start[0] - context/2, start[1] + ctl_point_sample * len(src_points))[::ctl_point_sample])
-    transform = estimate_transform('piecewise-affine', src_points, dst_points)
+        samples = line(lineseg[0][0], lineseg[0][1], lineseg[1][0], lineseg[1][1])
+        lower = samples[0] - int(context * uy), samples[1] + int(context * ux)
+        upper = samples[0] + int(context * uy), samples[1] - int(context * ux)
+        for l in zip(*upper, *samples):
+            upper_pts.append(np.transpose(line(*l))[-context//2:, :].T)
+        for l in zip(*samples, *lower):
+            lower_pts.append(np.transpose(line(*l))[1:context//2+1, :].T)
+    return np.stack(im[x.tolist()] for x in np.concatenate((upper_pts, lower_pts), axis=2)).T
