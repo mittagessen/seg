@@ -10,6 +10,7 @@ from skimage.measure import approximate_polygon
 from skimage.transform import estimate_transform
 from skimage.morphology import skeletonize_3d
 
+from itertools import combinations
 from collections import defaultdict
 
 def denoising_hysteresis_thresh(im, low, high, sigma):
@@ -33,7 +34,13 @@ def vectorize_lines(im: np.ndarray):
     line_skel = line_skel > 0
     kernel = np.array([[1,1,1],[1,10,1],[1,1,1]])
     line_extrema = np.transpose(np.where((convolve2d(line_skel, kernel, mode='same') == 11) * line_skel))
-    # find all least cost paths between extrema
+
+    # map extrema to connected components
+    cc_extrema = defaultdict(list)
+    label_im, _ = label(line_skel, structure=np.ones((3, 3)))
+    for pt in line_extrema:
+        cc_extrema[label_im[tuple(pt)]].append(pt)
+
     class LineMCP(MCP_Connect):
         def __init__(self, *args, **kwargs):
            super().__init__(*args, **kwargs)
@@ -56,17 +63,18 @@ def vectorize_lines(im: np.ndarray):
         def goal_reached(self, int_index, float_cumcost):
             return 2 if float_cumcost else 0
 
-    mcp = LineMCP(~line_skel)
-    mcp.find_costs(line_extrema)
-    # filter connections by connected component. only keep longest path.
-    connections = defaultdict(list)
-    label_im, _ = label(line_skel, structure=np.ones((3, 3)))
-    for path in mcp.get_connections():
-        cc = label_im[tuple(path[0, :])]
-        if len(path) > len(connections[cc]):
-            connections[cc] = path
+    connections = []
+    for line in cc_extrema.values():
+        path = []
+        for start, end in combinations(line, 2):
+            mcp = LineMCP(~line_skel)
+            mcp.find_costs([start, end])
+            l = mcp.get_connections()[0]
+            if len(l) > len(path):
+                path = l
+        connections.append(path)
     # subsample lines using Douglas-Peucker
-    return [approximate_polygon(line, 3).tolist() for line in connections.values()]
+    return [approximate_polygon(line, 3).tolist() for line in connections]
 
 
 def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int):
