@@ -10,6 +10,8 @@ from skimage.measure import approximate_polygon
 from skimage.transform import estimate_transform
 from skimage.morphology import skeletonize_3d
 
+from sklearn.metrics.pairwise import euclidean_distances
+
 from itertools import combinations
 from collections import defaultdict
 
@@ -25,7 +27,7 @@ def denoising_hysteresis_thresh(im, low, high, sigma):
 
 def vectorize_lines(im: np.ndarray):
     """
-    Vectorizes lines from a binarized array. Inspired by the dhSegment package.
+    Vectorizes lines from a binarized array.
     """
 
     line_skel = skeletonize_3d(im)
@@ -35,11 +37,21 @@ def vectorize_lines(im: np.ndarray):
     kernel = np.array([[1,1,1],[1,10,1],[1,1,1]])
     line_extrema = np.transpose(np.where((convolve2d(line_skel, kernel, mode='same') == 11) * line_skel))
 
-    # map extrema to connected components
-    cc_extrema = defaultdict(list)
+    # this is the ugly hack from dhSegment. Instead calculating the graph
+    # diameter to find the centerline of the skeleton (which is unbearably
+    # slow) just take the two points with the largest euclidian distance as
+    # endpoints. This breaks down in case of folded or spiral lines as the true
+    # end points are closer closer than random branches on the skeleton.
+    candidates = defaultdict(list)
     label_im, _ = label(line_skel, structure=np.ones((3, 3)))
     for pt in line_extrema:
-        cc_extrema[label_im[tuple(pt)]].append(pt)
+        candidates[label_im[tuple(pt)]].append(pt)
+    cc_extrema = []
+    for pts in candidates.values():
+        distance = euclidean_distances(np.stack(pts), np.stack(pts))
+        i, j = np.unravel_index(distance.argmax(), distance.shape)
+        cc_extrema.append(pts[i])
+        cc_extrema.append(pts[j])
 
     class LineMCP(MCP_Connect):
         def __init__(self, *args, **kwargs):
@@ -63,18 +75,26 @@ def vectorize_lines(im: np.ndarray):
         def goal_reached(self, int_index, float_cumcost):
             return 2 if float_cumcost else 0
 
-    connections = []
-    for line in cc_extrema.values():
-        path = []
-        for start, end in combinations(line, 2):
-            mcp = LineMCP(~line_skel)
-            mcp.find_costs([start, end])
-            l = mcp.get_connections()[0]
-            if len(l) > len(path):
-                path = l
-        connections.append(path)
+    mcp = LineMCP(~line_skel)
+    mcp.find_costs(cc_extrema)
+    # incredibly slow graph diameter extraction
+    #le = 0
+    #idx = 0
+    #for line in cc_extrema.values():
+    #    le += len(list(combinations(line, 2)))
+    #for line in cc_extrema.values():
+    #    path = []
+    #    mcp = LineMCP(~line_skel)
+    #    for start, end in combinations(line, 2):
+    #        mcp.find_costs([start, end])
+    #        l = mcp.get_connections()[0]
+    #        if len(l) > len(path):
+    #            path = l
+    #        print('{}/{}'.format(idx, le))
+    #        idx += 1
+    #    connections.append(path)
     # subsample lines using Douglas-Peucker
-    return [approximate_polygon(line, 3).tolist() for line in connections]
+    return [approximate_polygon(line, 3).tolist() for line in mcp.get_connections()]
 
 
 def line_extractor(im: np.ndarray, polyline: np.ndarray, context: int):

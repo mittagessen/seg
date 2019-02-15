@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from PIL import Image
+from PIL import Image, ImageDraw
 from scipy.misc import imsave
 from torchvision import transforms
 from torch.utils.data import DataLoader
@@ -151,7 +151,11 @@ def pred(model, device, context, images):
             for idx, line in enumerate(lines):
                 l = line_extractor(np.array(im.convert('L')), line, 80)
                 Image.fromarray(line_extractor(np.array(im.convert('L')), line, 80)).save('{}_{}.png'.format(os.path.splitext(img)[0], idx))
-
+            draw = ImageDraw.Draw(im)
+            for line in lines:
+                draw.line([tuple(x[::-1]) for x in line], fill=(255, 0, 0))
+            del draw
+            im.save('{}_overlay.png'.format(os.path.splitext(img)[0]))
 
 if __name__ == '__main__':
     cli()
