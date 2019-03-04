@@ -21,7 +21,7 @@ from ignite.metrics import Accuracy, Precision, Recall, RunningAverage, Loss
 from ignite.handlers import ModelCheckpoint, EarlyStopping, TerminateOnNan
 from ignite.contrib.handlers import ProgressBar
 
-from seg.model import ResUNet
+from seg.model import ResUNet, _wi
 from seg.dataset import BaselineSet
 from seg.postprocess import denoising_hysteresis_thresh, vectorize_lines, line_extractor
 
@@ -40,6 +40,7 @@ def cli():
 @click.option('-w', '--workers', default=0, help='number of workers loading training data')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-v', '--validation', default='val', help='validation set location')
+@click.option('--refine-projection/--clear-projection', default=False, help='clear pretrained last layer')
 @click.option('-r', '--refine-encoder/--freeze-encoder', default=False, help='Freeze pretrained encoder weights')
 @click.option('--lag', show_default=True, default=20, help='Number of epochs to wait before stopping training without improvement')
 @click.option('--min-delta', show_default=True, default=0.005, help='Minimum improvement between epochs to reset early stopping')
@@ -49,8 +50,8 @@ def cli():
 @click.option('--augment/--no-augment', show_default=True, default=True, help='Enables data augmentation')
 @click.argument('ground_truth', nargs=1)
 def train(name, load, arch, lrate, weight_decay, workers, device, validation,
-          refine_encoder, lag, min_delta, optimizer, threads, weigh_loss,
-          augment, ground_truth):
+          refine_projection, refine_encoder, lag, min_delta, optimizer,
+          threads, weigh_loss, augment, ground_truth):
 
     print('model output name: {}'.format(name))
 
@@ -71,10 +72,10 @@ def train(name, load, arch, lrate, weight_decay, workers, device, validation,
 
     if load:
         print('loading weights')
-        model = load_state_dict(torch.load(load, map_location='cpu'))
+        model = torch.load(load, map_location='cpu')
         if not refine_projection:
             print('reinitializing last layer')
-            model._wi(net.squash)
+            _wi(model.squash)
 
     weights = None
     if weigh_loss:
