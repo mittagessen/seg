@@ -119,10 +119,13 @@ class UnetDecoder(nn.Module):
 
         self.conv = nn.Conv2d(in_channels, inter_channels, kernel_size=3, padding=1)
         self.deconv = nn.ConvTranspose2d(inter_channels, out_channels, 3, padding=1, stride=2)
+        self.norm_conv = nn.GroupNorm(32, inter_channels)
+        self.norm_deconv = nn.GroupNorm(32, out_channels)
+
 
     def forward(self, x, output_size):
-        x = F.relu(self.conv(x))
-        return F.relu(self.deconv(x, output_size=output_size))
+        x = F.relu(self.norm_conv(self.conv(x)))
+        return F.relu(self.norm_deconv(self.deconv(x, output_size=output_size)))
 
 
 class ResUNet(nn.Module):
