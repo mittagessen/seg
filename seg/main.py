@@ -17,7 +17,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from ignite.engine import Engine, Events, create_supervised_trainer, create_supervised_evaluator
-from ignite.metrics import Accuracy, Precision, Recall, RunningAverage
+from ignite.metrics import Accuracy, Precision, Recall, RunningAverage, Loss
 from ignite.handlers import ModelCheckpoint, EarlyStopping, TerminateOnNan
 from ignite.contrib.handlers import ProgressBar
 
@@ -80,8 +80,8 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
         opti = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lrate, weight_decay=weight_decay)
 
     def score_function(engine):
-        val_loss = engine.state.metrics['accuracy']
-        return -val_loss
+        val_loss = engine.state.metrics['loss']
+        return val_loss
 
     def output_preprocess(output):
         o, target = output
@@ -92,7 +92,8 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
     trainer = create_supervised_trainer(model, opti, criterion, device=device, non_blocking=True)
     evaluator = create_supervised_evaluator(model, device=device, non_blocking=True, metrics={'accuracy': Accuracy(output_transform=output_preprocess),
                                                                                               'precision': Precision(output_transform=output_preprocess),
-                                                                                              'recall': Recall(output_transform=output_preprocess)})
+                                                                                              'recall': Recall(output_transform=output_preprocess),
+                                                                                              'loss': Loss(criterion)})
     ckpt_handler = ModelCheckpoint('.', name, save_interval=1, n_saved=10, require_empty=False)
     est_handler = EarlyStopping(lag, score_function, trainer)
     RunningAverage(output_transform=lambda x: x).attach(trainer, 'loss')
@@ -108,7 +109,8 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
     def log_validation_results(engine):
         evaluator.run(val_data_loader)
         metrics = evaluator.state.metrics
-        progress_bar.log_message('eval results - epoch {} accuracy: {:.2f} recall: {:.2f} precision {:.2f}'.format(engine.state.epoch,
+        progress_bar.log_message('eval results - epoch {} loss: {:.2f} accuracy: {:.2f} recall: {:.2f} precision {:.2f}'.format(engine.state.epoch,
+                                                                                                                   metrics['loss'],
                                                                                                                    metrics['accuracy'],
                                                                                                                    metrics['recall'],
                                                                                                                    metrics['precision']))
