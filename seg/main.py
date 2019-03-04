@@ -33,6 +33,7 @@ def cli():
 
 @cli.command()
 @click.option('-n', '--name', default='model', help='prefix for checkpoint file names')
+@click.option('-i', '--load', default=None, type=click.Path(exists=True, readable=True), help='pretrained weights to load')
 @click.option('-t', '--arch', default='ResUNet', type=click.Choice(['ResUNet']))
 @click.option('-l', '--lrate', default=0.003, help='initial learning rate')
 @click.option('--weight-decay', default=1e-5, help='weight decay')
@@ -47,9 +48,9 @@ def cli():
 @click.option('--weigh-loss/--no-weigh-loss', show_default=True, default=False, help='Weighs cross entropy loss for class frequency')
 @click.option('--augment/--no-augment', show_default=True, default=True, help='Enables data augmentation')
 @click.argument('ground_truth', nargs=1)
-def train(name, arch, lrate, weight_decay, workers, device, validation, refine_encoder, lag,
-          min_delta, optimizer, threads, weigh_loss, augment,
-          ground_truth):
+def train(name, load, arch, lrate, weight_decay, workers, device, validation,
+          refine_encoder, lag, min_delta, optimizer, threads, weigh_loss,
+          augment, ground_truth):
 
     print('model output name: {}'.format(name))
 
@@ -67,6 +68,13 @@ def train(name, arch, lrate, weight_decay, workers, device, validation, refine_e
         model = ResUNet(1, refine_encoder).to(device)
     else:
         raise Exception('invalid model type selected')
+
+    if load:
+        print('loading weights')
+        model = load_state_dict(torch.load(load, map_location='cpu'))
+        if not refine_projection:
+            print('reinitializing last layer')
+            model._wi(net.squash)
 
     weights = None
     if weigh_loss:

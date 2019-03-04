@@ -124,8 +124,10 @@ class UnetDecoder(nn.Module):
 
 
     def forward(self, x, output_size):
-        x = F.relu(self.norm_conv(self.conv(x)))
-        return F.relu(self.norm_deconv(self.deconv(x, output_size=output_size)))
+        #x = F.relu(self.norm_conv(self.conv(x)))
+        #return F.relu(self.norm_deconv(self.deconv(x, output_size=output_size)))
+        x = F.relu(self.conv(x))
+        return F.relu(self.deconv(x, output_size=output_size))
 
 
 class ResUNet(nn.Module):
