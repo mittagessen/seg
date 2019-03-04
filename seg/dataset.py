@@ -28,6 +28,8 @@ class BaselineSet(data.Dataset):
 
     def transform(self, image, target):
         resize = transforms.Resize(900)
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
 
         image = resize(image)
         target = resize(target)
@@ -57,7 +59,7 @@ class BaselineSet(data.Dataset):
             return tf.to_tensor(image), tf.to_tensor(target)
         else:
             target = Image.fromarray(((np.array(target) > 0) * 255).astype('uint8'))
-            return tf.to_tensor(image.convert('RGB')), tf.to_tensor(target)
+            return normalize(tf.to_tensor(image.convert('RGB'))), tf.to_tensor(target)
 
     def __len__(self):
         return len(self.imgs)
