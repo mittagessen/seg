@@ -90,7 +90,7 @@ def train(name, load, arch, lrate, weight_decay, workers, device, validation,
 
     def score_function(engine):
         val_loss = engine.state.metrics['loss']
-        return val_loss
+        return -val_loss
 
     def output_preprocess(output):
         o, target = output
