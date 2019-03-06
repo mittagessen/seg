@@ -157,6 +157,9 @@ def pred(model, device, context, images):
             cls.save(os.path.splitext(img)[0] + '_class.png')
             # running line vectorization
             lines = vectorize_lines(np.array(cls))
+            with open('{}.txt'.format(os.path.splitext(img)[0]), 'w') as fp:
+                for line in lines:
+                    fp.write(';'.join(['{},{}'.format(x[0], x[1]) for x in line]) + '\n')
             with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
                 json.dump(lines, fp)
             for idx, line in enumerate(lines):
