@@ -170,7 +170,7 @@ def pred(model, device, context, images):
             for line in lines:
                 draw.line([tuple(x[::-1]) for x in line], width=10, fill=(0, 130, 200, 127))
             del draw
-            Image.alpha_composite(im, overlay).save('{}_overlay.png'.format(os.path.splitext(img)[0]))
+            Image.alpha_composite(im.convert('RGBA'), overlay).save('{}_overlay.png'.format(os.path.splitext(img)[0]))
 
 if __name__ == '__main__':
     cli()
