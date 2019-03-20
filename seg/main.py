@@ -165,11 +165,12 @@ def pred(model, device, context, images):
             #for idx, line in enumerate(lines):
             #    l = line_extractor(np.array(im.convert('L')), line, 80)
             #    Image.fromarray(line_extractor(np.array(im.convert('L')), line, 80)).save('{}_{}.png'.format(os.path.splitext(img)[0], idx))
-            draw = ImageDraw.Draw(im)
+            overlay = Image.new('RGBA', im.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(overlay)
             for line in lines:
-                draw.line([tuple(x[::-1]) for x in line], fill=(255, 0, 0))
+                draw.line([tuple(x[::-1]) for x in line], width=10, fill=(0, 130, 200, 127))
             del draw
-            im.save('{}_overlay.png'.format(os.path.splitext(img)[0]))
+            Image.alpha_composite(im, overlay).save('{}_overlay.png'.format(os.path.splitext(img)[0]))
 
 if __name__ == '__main__':
     cli()
