@@ -130,8 +130,10 @@ def train(name, load, arch, lrate, weight_decay, workers, device, validation,
 @click.option('-m', '--model', default=None, help='model file')
 @click.option('-d', '--device', default='cpu', help='pytorch device')
 @click.option('-c', '--context', default=80, help='context around baseline')
+@click.option('-t', '--thresholds', default=(0.3, 0.5), type=(float, float), help='thresholds for hysteresis thresholding')
+@click.option('-s', '--sigma', default=2.5, help='sigma of gaussian filter in postprocessing')
 @click.argument('images', nargs=-1)
-def pred(model, device, context, images):
+def pred(model, device, context, thresholds, sigma, images):
 
     device = torch.device(device)
     with open(model, 'rb') as fp:
@@ -150,7 +152,7 @@ def pred(model, device, context, images):
             o = torch.sigmoid(o)
             cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
-            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), 0.3, 0.5, 2.5)
+            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), thresholds[0], thresholds[1], sigma)
             print('result extraction')
             # resample to original size
             cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
