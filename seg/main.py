@@ -144,7 +144,7 @@ def pred(model, device, context, images):
         for img in images:
             print('transforming image {}'.format(img))
             im = Image.open(img).convert('RGB')
-            norm_im = transform(im)
+            norm_im = transform(im).to(device)
             print('running forward pass')
             o = m.forward(norm_im.unsqueeze(0))
             o = torch.sigmoid(o)
@@ -162,9 +162,9 @@ def pred(model, device, context, images):
                     fp.write(';'.join(['{},{}'.format(x[0], x[1]) for x in line]) + '\n')
             with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
                 json.dump(lines, fp)
-            for idx, line in enumerate(lines):
-                l = line_extractor(np.array(im.convert('L')), line, 80)
-                Image.fromarray(line_extractor(np.array(im.convert('L')), line, 80)).save('{}_{}.png'.format(os.path.splitext(img)[0], idx))
+            #for idx, line in enumerate(lines):
+            #    l = line_extractor(np.array(im.convert('L')), line, 80)
+            #    Image.fromarray(line_extractor(np.array(im.convert('L')), line, 80)).save('{}_{}.png'.format(os.path.splitext(img)[0], idx))
             draw = ImageDraw.Draw(im)
             for line in lines:
                 draw.line([tuple(x[::-1]) for x in line], fill=(255, 0, 0))
