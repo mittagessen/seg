@@ -76,7 +76,10 @@ def vectorize_lines(im: np.ndarray):
             return 2 if float_cumcost else 0
 
     mcp = LineMCP(~line_skel)
-    mcp.find_costs(cc_extrema)
+    try:
+        mcp.find_costs(cc_extrema)
+    except ValueError as e:
+        return []
     # incredibly slow graph diameter extraction
     #le = 0
     #idx = 0
