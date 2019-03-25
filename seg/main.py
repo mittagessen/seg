@@ -152,18 +152,17 @@ def pred(model, device, context, thresholds, sigma, images):
             o = torch.sigmoid(o)
             cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
-            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), thresholds[0], thresholds[1], sigma)
+            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), sigma)
+            cls = Image.fromarray((o*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
+            cls.save(os.path.splitext(img)[0] + '_thresh.png')
             print('result extraction')
-            # resample to original size
-            cls = Image.fromarray(np.array(o, 'uint8')).resize(im.size, resample=Image.NEAREST)
-            cls.save(os.path.splitext(img)[0] + '_class.png')
             # running line vectorization
             lines = vectorize_lines(np.array(cls))
-            with open('{}.txt'.format(os.path.splitext(img)[0]), 'w') as fp:
-                for line in lines:
-                    fp.write(';'.join(['{},{}'.format(x[0], x[1]) for x in line]) + '\n')
-            with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
-                json.dump(lines, fp)
+            #with open('{}.txt'.format(os.path.splitext(img)[0]), 'w') as fp:
+            #    for line in lines:
+            #        fp.write(';'.join(['{},{}'.format(x[0], x[1]) for x in line]) + '\n')
+            #with open('{}.json'.format(os.path.splitext(img)[0]), 'w') as fp:
+            #    json.dump(lines, fp)
             #for idx, line in enumerate(lines):
             #    l = line_extractor(np.array(im.convert('L')), line, 80)
             #    Image.fromarray(line_extractor(np.array(im.convert('L')), line, 80)).save('{}_{}.png'.format(os.path.splitext(img)[0], idx))
