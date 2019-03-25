@@ -4,6 +4,7 @@ from scipy.signal import convolve2d
 from scipy.ndimage import label
 from scipy.ndimage.filters import gaussian_filter
 
+from skimage import filters
 from skimage.draw import line
 from skimage.graph import MCP_Connect
 from skimage.measure import approximate_polygon
@@ -17,12 +18,7 @@ from collections import defaultdict
 
 def denoising_hysteresis_thresh(im, low, high, sigma):
     im = gaussian_filter(im, sigma)
-    lower = im > low
-    components, count = label(lower, np.ones((3, 3)))
-    valid = np.unique(components[lower & (im > high)])
-    lm = np.zeros((count + 1,), bool)
-    lm[valid] = True
-    return lm[components]
+    return im >= filters.threshold_otsu(im)
 
 
 def vectorize_lines(im: np.ndarray):
