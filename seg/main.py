@@ -152,7 +152,7 @@ def pred(model, device, context, thresholds, sigma, images):
             o = torch.sigmoid(o)
             cls = Image.fromarray((o.detach().squeeze().cpu().numpy()*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_nonthresh.png')
-            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), sigma)
+            o = denoising_hysteresis_thresh(o.detach().squeeze().cpu().numpy(), thresholds[0], thresholds[1], sigma)
             cls = Image.fromarray((o*255).astype('uint8')).resize(im.size, resample=Image.NEAREST)
             cls.save(os.path.splitext(img)[0] + '_thresh.png')
             print('result extraction')

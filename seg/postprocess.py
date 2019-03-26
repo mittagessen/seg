@@ -18,7 +18,7 @@ from collections import defaultdict
 
 def denoising_hysteresis_thresh(im, low, high, sigma):
     im = gaussian_filter(im, sigma)
-    return im >= filters.threshold_otsu(im)
+    return filters.apply_hysteresis_threshold(im, low, high)
 
 
 def vectorize_lines(im: np.ndarray):
